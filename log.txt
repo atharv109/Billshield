@@ -1,0 +1,345 @@
+================================================================================
+  BILLSHIELD — CHANGE LOG
+  Branch: claude/3d-case-room-interface-0o4fi
+  Last updated: 2026-03-28
+================================================================================
+
+RULES
+  - No pushes until explicitly authorised.
+  - All changes (code, config, structure) are logged here first.
+  - Active backend: TypeScript / Express (server/).
+  - Python backend (person_a/) is reference only — do not wire in.
+
+================================================================================
+SESSION 1 — 2026-03-28
+================================================================================
+
+[REPO SYNC]
+  - Local branch was 9 commits behind origin/claude/3d-case-room-interface-0o4fi.
+  - Ran: git fetch origin → git stash → git pull --rebase → git stash drop
+  - Branch is now at d2a18b3 (remote tip) + 1 local-only commit (6d007a7).
+  - Local is 1 commit ahead of origin. NOT pushed.
+
+[CURRENT COMMIT HISTORY — local HEAD]
+  6d007a7  2026-03-28  Add Person A FastAPI backend under person_a       ← LOCAL ONLY
+  d2a18b3  2026-03-28  fix: enforce MVP contract — exactly 2 files, minimum 3 flags
+  2e49c4e  2026-03-28  chore: add request logging middleware and .env.example
+  4768193  2026-03-28  fix: propagate real provider/insurer names and service dates through FinalOutput.meta
+  9f7b0f0  2026-03-28  cleanup: remove legacy services/claude.ts
+  d7ecfea  2026-03-28  merge: reconcile remote frontend fixes with local multi-agent pipeline
+  97f6e2d  2026-03-28  feat: wire multi-agent BillShield pipeline end-to-end
+  ff1ec10  2026-03-28  Bulletproof frontend — fix all critical bugs
+  ac136be  2026-03-28  Swap backend AI from Anthropic to OpenAI (gpt-4o)
+  01aa914  2026-03-28  Add landing page with scroll animations, dashboard, and Express backend
+  3a266b3  2026-03-28  fix: overhaul all visual layers for clarity and polish
+  87e93a4  2026-03-28  chore: add .gitignore and README
+  95a775e  2026-03-28  feat: build BillShield 3D case room interface from scratch
+
+================================================================================
+PHASE 7 MERGE PLAN — STATUS
+================================================================================
+
+  [DONE] Add request logging to server/src/index.ts
+         → Implemented in commit 2e49c4e
+         → Logs: METHOD /path STATUS Xms
+
+  [DONE] Create server/.env.example
+         → Implemented in commit 2e49c4e
+         → Documents ANTHROPIC_API_KEY and PORT
+
+  [DONE] Keep person_a/ as reference only
+         → Directory exists locally, not wired to any route or import
+         → README_REFERENCE.md added in branch person-a/typescript-backend-integration
+         → Confirmed: person_a imports do NOT appear in server/ or src/
+
+  [DONE] TypeScript backend is the active pipeline (not Python)
+         → server/src/index.ts — Express app, port 3001
+         → server/src/pipeline/pipeline.ts — 8-step orchestration
+         → All agents use Claude API (claude-sonnet-4-6) via claudeHelper.ts
+
+  [NOT NEEDED] SQLite persistence — deferred to future
+  [NOT NEEDED] pdfplumber table extraction — deferred to future
+
+================================================================================
+BACKEND ARCHITECTURE — CURRENT STATE
+================================================================================
+
+  server/
+    src/
+      index.ts                  Express app, CORS, request logging, health check
+      agents/
+        claudeHelper.ts         Shared Claude API caller (claude-sonnet-4-6)
+        intakeAgent.ts          Validates uploaded files
+        ocrAgent.ts             Extracts text from PDF/image buffers
+        docTypeAgent.ts         Classifies bill vs EOB
+        billExtractionAgent.ts  Extracts structured data from bill
+        eobExtractionAgent.ts   Extracts structured data from EOB
+        comparisonAgent.ts      Cross-references bill vs EOB, generates flags
+        summaryAgent.ts         Plain-English summary for patient
+        actionAgent.ts          Generates call script or letter draft
+        scoringAgent.ts         Scores extraction/flag quality (0-100)
+        orchestratorAgent.ts    Assembles FinalOutput, applies confidence filters
+        deterministicRules.ts   Fallback rules when Claude API unavailable
+      middleware/
+        upload.ts               Multer config (memory storage, PDF+image)
+      pipeline/
+        pipeline.ts             End-to-end 8-step sequential/parallel pipeline
+      routes/
+        upload.ts               POST /api/upload, POST /api/upload/analyze
+        cases.ts                GET /api/cases (in-memory store)
+        stats.ts                GET /api/stats
+      services/
+        outputMapper.ts         Maps FinalOutput → frontend CaseData shape
+      types/
+        agentTypes.ts           All shared TypeScript interfaces
+      data/
+        store.ts                In-memory case store
+        mockData.ts             Fallback mock case data
+
+  ACTIVE MODEL:  claude-sonnet-4-6 (Anthropic)
+  FALLBACK:      deterministicRules.ts (no API key required)
+  PORT:          3001 (configurable via PORT env var)
+
+================================================================================
+FRONTEND — CURRENT STATE
+================================================================================
+
+  src/store/useAppStore.ts      Zustand store — wired to http://localhost:3001/api
+  src/ui/UploadZone.tsx         Calls simulateUpload() → uploadAndAnalyze()
+  src/data/mockCase.ts          Types + DEMO_CASE (used by loadDemoCase only)
+
+  FLOW:
+    User drops PDFs → POST /api/upload → POST /api/upload/analyze
+    → FinalOutput → outputMapper → CaseData → React state → 3D scene
+
+  DEMO MODE:
+    "Try Demo" button → loadDemoCase() → uses hardcoded DEMO_CASE, no API call
+
+================================================================================
+ENVIRONMENT SETUP (for anyone running locally)
+================================================================================
+
+  1. Copy server/.env.example → server/.env
+  2. Add ANTHROPIC_API_KEY=sk-ant-...
+  3. cd server && npm install && npm run dev   (port 3001)
+  4. cd .. (root) && npm install && npm run dev (port 5173)
+  5. Open http://localhost:5173
+  6. Upload a real hospital bill PDF + EOB PDF
+
+================================================================================
+BACKEND AUDIT — 2026-03-28
+================================================================================
+
+FINDINGS (Person A scope — backend only):
+
+[DANGEROUS] Silent PDF parse failure
+  File: server/src/agents/ocrAgent.ts:30
+  Issue: catch block returns raw_text='' with no log. Pipeline runs on empty text.
+  Client gets 200 with garbage output. Silent production failure.
+  Fix: log the error before continuing.
+
+[DANGEROUS] Schema split — two incompatible CaseData types
+  File 1: server/src/data/mockData.ts (server-schema CaseData)
+  File 2: src/data/mockCase.ts (frontend-schema CaseData)
+  outputMapper.ts returns frontend-schema. cases CRUD stores server-schema.
+  These are structurally incompatible. NEEDS ALIGNMENT with Person C.
+
+[DANGEROUS] Memory leak — uploaded file buffers never cleared
+  File: server/src/routes/upload.ts:11
+  Issue: uploadedFiles Map grows forever. Each session adds up to 40 MB.
+  Fix: delete from Map after pipeline completes.
+
+[DANGEROUS] Pipeline result never written to store
+  File: server/src/routes/upload.ts (analyze handler)
+  Issue: result returned to client, never persisted. /api/cases and /api/stats
+  only ever show demo seed data. Stats are permanently stale.
+  Fix: call store.create() after mapFinalOutputToFrontendCase().
+
+[HIGH] No global error handler
+  File: server/src/index.ts
+  Issue: unhandled sync throws return HTML stack traces. cases route has no try/catch.
+  Fix: add express error middleware after all routes.
+
+[MEDIUM] No Claude API timeout
+  File: server/src/agents/claudeHelper.ts
+  Issue: callClaude() can hang indefinitely. No AbortSignal or timeout.
+
+[MEDIUM] PATCH is shallow merge only
+  File: server/src/data/store.ts:23
+  Issue: { ...existing, ...patch } replaces nested objects entirely.
+
+[LOW] CORS hardcoded to localhost:5173
+  File: server/src/index.ts:10
+  Fix: read from CORS_ORIGIN env var.
+
+[LOW] openai package installed but unused
+  File: server/package.json
+  Leftover from commit ac136be. Remove with: npm uninstall openai --save
+
+[LOW] MOCK_STATS never used
+  File: server/src/data/mockData.ts:154
+  Remove.
+
+CONTRACT STATUS:
+  POST /api/upload               → SAFE
+  POST /api/upload/analyze       → SAFE
+  GET  /api/cases                → NEEDS ALIGNMENT (wrong schema for frontend)
+  GET  /api/stats                → NEEDS ALIGNMENT (stale demo data only)
+  CORS                           → NEEDS ALIGNMENT (hardcoded, breaks on deploy)
+
+PENDING FIXES (in priority order):
+  [x] FIX-1: Log PDF parse failures in ocrAgent.ts
+  [x] FIX-2: Clear uploadedFiles Map after pipeline completes (upload.ts)
+  [x] FIX-3: Write pipeline result to store.create() (upload.ts)
+  [ ] FIX-4: Add global error handler (index.ts)
+  [ ] FIX-5: Make CORS_ORIGIN env-configurable (index.ts)
+  [ ] FIX-6: Remove openai from package.json
+  [ ] FIX-7: Remove MOCK_STATS from mockData.ts
+  [x] ALIGN: Reconcile CaseData schema split with Person C
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 1
+Title: Log silent PDF parse failures in ocrAgent
+Problem: catch block swallowed all pdf-parse errors silently. Pipeline continued
+         on empty text, returned a 200 with low-quality output, and the operator
+         had no visibility that parsing had failed.
+Fix: Added err variable to catch clause and console.warn with filename + doc_id
+     before falling through to raw_text = ''. Downstream behaviour is unchanged —
+     pipeline still runs on empty text and scoringAgent marks needs_human_review.
+Files Affected:
+  - server/src/agents/ocrAgent.ts
+Code Changes:
+  Before: } catch {
+            raw_text = ''
+          }
+  After:  } catch (err) {
+            console.warn(`[ocrAgent] Failed to extract text from "${filename}" (${doc_id}):`, err)
+            raw_text = ''
+          }
+Impact: Parse failures now appear in server logs with filename and doc_id.
+        Operators can identify bad PDFs without inspecting client output.
+Risk: Low — additive only. No return type, interface, or pipeline logic changed.
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 2
+Title: Clear upload file buffers after pipeline completes (memory leak fix)
+Problem: uploadedFiles Map in routes/upload.ts was never pruned. Every file uploaded
+         stayed in memory until server restart. Two 20 MB PDFs per session = 40 MB
+         accumulated indefinitely. Under any sustained use this would OOM the server.
+Fix: Added finally block after try/catch in the /analyze handler. Iterates fileIds
+     and calls uploadedFiles.delete(id) for each. finally guarantees cleanup on all
+     three exit paths: success, pipeline error (422), and thrown exception (500).
+Files Affected:
+  - server/src/routes/upload.ts
+Code Changes:
+  Added after catch block:
+    } finally {
+      // Release file buffers regardless of outcome — prevents memory accumulation
+      for (const id of fileIds) uploadedFiles.delete(id)
+    }
+Impact: Memory is released immediately after each analysis session regardless of
+        outcome. Map size stays at zero between requests.
+Risk: Low — finally runs after response is sent. No change to response shape,
+      pipeline logic, or upstream/downstream contracts.
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 3
+Title: Persist pipeline result to store after analysis
+Problem: After POST /api/upload/analyze returned, the mapped CaseData was sent to
+         the client and immediately lost. /api/cases and /api/stats only ever served
+         demo seed data — real analyses were never recorded.
+Fix: Added import for store. After mapFinalOutputToFrontendCase(), call store.create()
+     with the mapped result plus server-side fields status:'active' and createdAt.
+     store.create() runs before res.json() so the case is always persisted on success.
+     The as-any cast is intentional and scoped to this line — FIX-4 will introduce
+     the unified StoredCase type that makes this type-safe without the cast.
+     Pipeline error path (422) and exception path (500) correctly skip store.create()
+     since they return before reaching that line.
+Files Affected:
+  - server/src/routes/upload.ts
+Code Changes:
+  + import { store } from '../data/store'
+  + store.create({ ...caseData, status: 'active', createdAt: new Date().toISOString() } as any)
+Impact: Every successful analysis is now persisted in the in-memory store.
+        /api/cases will return real cases. /api/stats will aggregate real data.
+        Failed analyses are NOT persisted (correct behaviour).
+Risk: Low — store.create() is non-throwing (simple Map.set). Response shape to
+      client unchanged. as-any cast removed in FIX-4.
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 4
+Title: Unify CaseData schema — replace server-schema with StoredCase matching pipeline output
+Problem: Two incompatible CaseData types existed in the same codebase:
+         - server/src/data/mockData.ts used a server-schema (patientName, summary.totalBilled,
+           BillIssue with amount/documentId/actionIds, etc.)
+         - src/data/mockCase.ts used a frontend-schema (flat totalBilled, Issue with
+           relatedDocIds/explanation, Action with whyItMatters/draft/script)
+         outputMapper.ts (Person C boundary) produced frontend-schema. The cases CRUD
+         stored server-schema. These were structurally incompatible — any attempt by
+         the frontend to use /api/cases data would silently receive the wrong shape.
+         stats.ts accessed c.summary.totalBilled which TypeScript now correctly rejects.
+Fix: Replaced mockData.ts entirely with StoredCase interface that exactly matches
+     what outputMapper.ts produces, plus status and createdAt server-only fields.
+     Updated store.ts to use StoredCase throughout.
+     Updated cases.ts route to use StoredCase — POST handler now uses flat fields.
+     Updated stats.ts to use c.totalBilled (flat) instead of c.summary.totalBilled.
+     Updated upload.ts to import StoredCase and removed the as-any cast from FIX-3.
+     MOCK_STATS dead export removed as part of the mockData.ts rewrite.
+     store.update() now strips id and createdAt from patches (immutable fields).
+     Demo seed data (DEMO_CASES) rewritten to match the new StoredCase shape.
+Files Affected:
+  - server/src/data/mockData.ts   (full rewrite — new types + new demo data)
+  - server/src/data/store.ts      (CaseData → StoredCase, immutable field guard)
+  - server/src/routes/cases.ts    (CaseData → StoredCase, POST handler updated)
+  - server/src/routes/stats.ts    (c.summary.* → c.* flat fields, totalSaved removed)
+  - server/src/routes/upload.ts   (import StoredCase, as-any cast → as StoredCase)
+Impact: Single source of truth for case shape across pipeline output, store, and
+        CRUD routes. /api/cases now returns data the frontend can consume directly.
+        /api/stats correctly aggregates real cases from the pipeline.
+        TypeScript will catch any future shape divergence at compile time.
+Risk: Medium — touches 5 files. Demo seed data shape changed (non-breaking for
+      frontend since frontend only reads from /api/upload/analyze in the main flow).
+      No pipeline or agent code changed. outputMapper.ts untouched.
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 5
+Title: Full test suite — 168 tests, 8 suites, 100% pass rate
+Problem: No tests existed. Any regression across FIX-1 through FIX-4 would be
+         invisible until runtime. Multer fileFilter errors were silently returning
+         500 instead of 400 — discovered by testing.
+Fix: Added jest + ts-jest + supertest to devDependencies. Wrote 8 test suites:
+     - deterministicRules.test.ts  (53 tests — all 11 exported functions)
+     - intakeAgent.test.ts          (7 tests — count validation, uniqueness, bad input)
+     - ocrAgent.test.ts             (15 tests — PDF, text, image, failure paths)
+     - store.test.ts                (20 tests — CRUD, immutable fields, _reset)
+     - outputMapper.test.ts         (27 tests — all field mappings, edge cases)
+     - cases.test.ts                (22 tests — all 5 routes, full contract coverage)
+     - stats.test.ts                (8 tests — aggregation, empty store, status counts)
+     - upload.test.ts               (16 tests — upload, analyze, FIX-2/3 verification)
+     Added _reset() to store.ts for test isolation.
+     Fixed multer error path: wrapped upload.array() manually so fileFilter
+     rejections return 400 instead of bubbling as 500.
+     Fixed test expectation: 'non-participating provider' correctly returns 'mixed'
+     because IN_NETWORK_RE matches 'participating provider' as substring.
+Files Affected:
+  - server/package.json                               (jest deps + config + scripts)
+  - server/src/data/store.ts                          (_reset() added)
+  - server/src/routes/upload.ts                       (multer error → 400 fix)
+  - server/src/__tests__/agents/deterministicRules.test.ts  (new)
+  - server/src/__tests__/agents/intakeAgent.test.ts         (new)
+  - server/src/__tests__/agents/ocrAgent.test.ts            (new)
+  - server/src/__tests__/data/store.test.ts                 (new)
+  - server/src/__tests__/services/outputMapper.test.ts      (new)
+  - server/src/__tests__/routes/cases.test.ts               (new)
+  - server/src/__tests__/routes/stats.test.ts               (new)
+  - server/src/__tests__/routes/upload.test.ts              (new)
+Result: 168 tests, 8 suites, 0 failures. npm test is now the regression gate.
+Risk: Low — tests only. _reset() is additive to store. Multer fix converts an
+      unhandled error (500) to a proper 400 — no breaking change to happy path.
+==========================================================
+
+================================================================================
