@@ -117,6 +117,112 @@ function buildDeterministicFlags(
   return flags.slice(0, 3)
 }
 
+// ── Fallback pool: evidence-backed, cautious flags used when total < 3 ─────────
+function buildFallbackFlags(
+  bill: BillExtractionOutput,
+  eob: EobExtractionOutput,
+  existing: Flag[],
+): Flag[] {
+  const existingTypes = new Set(existing.map((f) => f.flag_type))
+  const candidates: Flag[] = []
+
+  // Candidate 1: patient responsibility confirmation
+  if (!existingTypes.has('responsibility_unclear') && eob.patient_responsibility != null) {
+    candidates.push({
+      flag_type: 'responsibility_unclear',
+      title: 'Patient responsibility amount worth confirming before payment',
+      explanation: `Your EOB lists a patient responsibility of $${eob.patient_responsibility.toLocaleString()}. It is worth confirming this matches your bill balance before making any payment.`,
+      why_it_matters:
+        'Paying before confirming the correct amount can make disputes harder to resolve later. Comparing your bill and EOB first helps ensure you pay what you actually owe.',
+      contact_target: 'provider',
+      severity: 'low',
+      confidence: 0.65,
+      evidence: [
+        `EOB patient responsibility: $${eob.patient_responsibility}`,
+        ...(bill.balance_due != null ? [`Bill balance due: $${bill.balance_due}`] : []),
+      ],
+    })
+  }
+
+  // Candidate 2: itemized bill review
+  if (!existingTypes.has('unclear_balance') && bill.line_items.length === 0) {
+    candidates.push({
+      flag_type: 'unclear_balance',
+      title: 'Itemized bill review may be worth requesting',
+      explanation:
+        'No detailed line items were identified in the uploaded bill. An itemized bill lists each service and charge individually, which can make it easier to verify what was billed.',
+      why_it_matters:
+        'You have the right to request an itemized bill. Reviewing individual charges can help identify entries that may warrant follow-up.',
+      contact_target: 'provider',
+      severity: 'low',
+      confidence: 0.7,
+      evidence: ['No individual line items were extracted from the bill'],
+    })
+  }
+
+  // Candidate 3: contractual adjustment review
+  if (
+    !existingTypes.has('missing_adjustment') &&
+    bill.total_billed != null &&
+    eob.insurance_paid != null
+  ) {
+    candidates.push({
+      flag_type: 'missing_adjustment',
+      title: 'Contractual adjustments worth confirming',
+      explanation:
+        'The difference between what was billed and what was paid may include contractual adjustments or write-offs. Confirming these adjustments were applied correctly is generally worth doing.',
+      why_it_matters:
+        'Contractual adjustments reduce your bill based on agreements between your provider and insurer. If they were not applied, you may be billed more than you owe.',
+      contact_target: 'insurer',
+      severity: 'low',
+      confidence: 0.6,
+      evidence: [
+        `Total billed: $${bill.total_billed}`,
+        `Insurance paid: $${eob.insurance_paid}`,
+        ...(eob.patient_responsibility != null
+          ? [`Patient responsibility: $${eob.patient_responsibility}`]
+          : []),
+      ],
+    })
+  }
+
+  // Candidate 4: service date alignment
+  if (
+    !existingTypes.has('date_service_mismatch') &&
+    bill.service_dates.length > 0 &&
+    eob.service_dates.length > 0
+  ) {
+    candidates.push({
+      flag_type: 'date_service_mismatch',
+      title: 'Service dates worth verifying across documents',
+      explanation:
+        'Your bill and EOB both reference service dates. It is worth confirming these match to ensure the claim was processed for the correct date of service.',
+      why_it_matters:
+        'A mismatch in service dates between your bill and EOB could indicate a processing error that may affect how your claim was adjudicated.',
+      contact_target: 'provider',
+      severity: 'low',
+      confidence: 0.6,
+      evidence: [
+        `Bill service dates: ${bill.service_dates.slice(0, 2).join(', ')}`,
+        `EOB service dates: ${eob.service_dates.slice(0, 2).join(', ')}`,
+      ],
+    })
+  }
+
+  return candidates
+}
+
+function ensureMinimumFlags(
+  flags: Flag[],
+  bill: BillExtractionOutput,
+  eob: EobExtractionOutput,
+): Flag[] {
+  if (flags.length >= 3) return flags
+  const needed = 3 - flags.length
+  const fallbacks = buildFallbackFlags(bill, eob, flags)
+  return [...flags, ...fallbacks.slice(0, needed)]
+}
+
 export async function comparisonAgent(
   bill: BillExtractionOutput,
   eob: EobExtractionOutput,
@@ -124,7 +230,7 @@ export async function comparisonAgent(
   const deterministicFlags = buildDeterministicFlags(bill, eob)
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    return { flags: deterministicFlags }
+    return { flags: ensureMinimumFlags(deterministicFlags, bill, eob) }
   }
 
   try {
@@ -174,8 +280,8 @@ export async function comparisonAgent(
       : []
 
     const combined = [...deterministicFlags, ...llmFlags].slice(0, 5)
-    return { flags: combined }
+    return { flags: ensureMinimumFlags(combined, bill, eob) }
   } catch {
-    return { flags: deterministicFlags }
+    return { flags: ensureMinimumFlags(deterministicFlags, bill, eob) }
   }
 }

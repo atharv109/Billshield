@@ -11,6 +11,15 @@ export function intakeAgent(files: IntakeFile[]): IntakeOutput {
     }
   }
 
+  if (files.length > 2) {
+    return {
+      status: 'error',
+      file_count: files.length,
+      doc_ids: [],
+      issues: ['Please upload exactly two documents: one medical bill and one Explanation of Benefits (EOB).'],
+    }
+  }
+
   const doc_ids = files.map((_, i) => `doc_${i + 1}_${uuidv4().slice(0, 8)}`)
 
   return {
