@@ -160,6 +160,12 @@ export interface FinalOutput {
   }
   internal_scores: ScoringOutput
   needs_human_review: boolean
+  // Provider/insurer metadata passed through for frontend display
+  meta: {
+    provider_name: string | null
+    insurer_name: string | null
+    first_service_date: string | null
+  }
 }
 
 // ─── Pipeline Context ─────────────────────────────────────────────────────────

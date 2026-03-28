@@ -10,6 +10,11 @@ export function mapFinalOutputToFrontendCase(final: FinalOutput): Record<string,
   const flags = final.final_output.flags
   const action = final.final_output.what_to_do_next
 
+  const providerName = final.meta.provider_name ?? 'Medical Provider'
+  const insurerName = final.meta.insurer_name ?? 'Insurance Company'
+  const serviceDate = final.meta.first_service_date
+    ?? new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
   // ── Issues ────────────────────────────────────────────────────────────────
   const issues = flags.map((flag: Flag, idx: number) => ({
     id: `iss-${idx + 1}`,
@@ -31,18 +36,18 @@ export function mapFinalOutputToFrontendCase(final: FinalOutput): Record<string,
     {
       id: 'doc-1',
       type: 'bill',
-      provider: 'Medical Provider',
+      provider: providerName,
       amount: s.provider_billed ?? 0,
-      dateOfService: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      dateOfService: serviceDate,
       position: [-4, 0.8, 0] as [number, number, number],
     },
     {
       id: 'doc-2',
       type: 'eob',
-      insurer: 'Insurance Company',
+      insurer: insurerName,
       paidAmount: s.insurance_paid ?? 0,
       patientOwe: s.you_may_owe ?? 0,
-      dateOfService: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      dateOfService: serviceDate,
       position: [4, 0.8, -0.5] as [number, number, number],
     },
   ]
@@ -62,7 +67,7 @@ export function mapFinalOutputToFrontendCase(final: FinalOutput): Record<string,
   return {
     id: uuidv4(),
     eventType: 'Medical Bill Review',
-    dateOfService: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    dateOfService: serviceDate,
     totalBilled: s.provider_billed ?? 0,
     insurerPaid: s.insurance_paid ?? 0,
     patientOwes: s.you_may_owe ?? 0,

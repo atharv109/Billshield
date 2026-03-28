@@ -67,6 +67,10 @@ export function orchestratorAgent(params: {
     uncertainties: ['Summary could not be fully generated from the provided documents.'],
   }
 
+  // ── Extract display metadata for frontend ────────────────────────────────
+  const firstServiceDate =
+    bill?.service_dates[0] ?? eob?.service_dates[0] ?? null
+
   return {
     final_output: {
       summary: resolvedSummary,
@@ -83,5 +87,10 @@ export function orchestratorAgent(params: {
     },
     internal_scores: scoring,
     needs_human_review: scoring.needs_human_review,
+    meta: {
+      provider_name: bill?.provider_name ?? null,
+      insurer_name: eob?.insurer_name ?? null,
+      first_service_date: firstServiceDate,
+    },
   }
 }
