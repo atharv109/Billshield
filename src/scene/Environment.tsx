@@ -79,3 +79,6 @@ export function SceneEnvironment() {
     </>
   )
 }
+
+// Alias for use in landing page canvas (same component, different import name)
+export { SceneEnvironment as Environment }

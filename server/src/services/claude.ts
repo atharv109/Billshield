@@ -1,9 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import type { CaseData } from '../data/mockData'
 import { DEMO_CASES } from '../data/mockData'
 import { v4 as uuidv4 } from 'uuid'
 
-const client = new Anthropic()
+const client = new OpenAI()
 
 const SYSTEM_PROMPT = `You are a medical billing expert AI. You analyze medical bills, explanations of benefits (EOBs), and insurance documents to identify billing errors, upcoding, duplicate charges, and other issues.
 
@@ -41,8 +41,7 @@ Action types: "dispute_letter", "appeal", "call_script", "itemized_bill", "eob_r
 Focus on finding real, actionable issues. Be specific about CPT codes, amounts, and the legal basis for the dispute.`
 
 export async function analyzeBill(fileDescriptions: string[]): Promise<CaseData> {
-  // If no ANTHROPIC_API_KEY set, return demo data
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     const demo = { ...DEMO_CASES[0], id: uuidv4(), createdAt: new Date().toISOString() }
     return demo
   }
@@ -52,26 +51,26 @@ export async function analyzeBill(fileDescriptions: string[]): Promise<CaseData>
     : 'Please analyze the provided medical bill and identify any errors, overcharges, or disputable items. Return the demo case structure.'
 
   try {
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o',
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userMessage },
+      ],
     })
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : ''
+    const text = response.choices[0].message.content ?? ''
 
-    // Strip any markdown code fences if present
     const cleaned = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
     const parsed = JSON.parse(cleaned) as CaseData
 
-    // Ensure required IDs exist
     if (!parsed.id) parsed.id = uuidv4()
     if (!parsed.createdAt) parsed.createdAt = new Date().toISOString()
 
     return parsed
   } catch (err) {
-    console.error('Claude API error — falling back to demo case:', err)
+    console.error('OpenAI API error — falling back to demo case:', err)
     const demo = { ...DEMO_CASES[0], id: uuidv4(), createdAt: new Date().toISOString() }
     return demo
   }
