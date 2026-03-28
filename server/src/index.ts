@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import casesRouter from './routes/cases'
@@ -21,8 +22,8 @@ app.use('/api/stats', statsRouter)
 
 app.listen(PORT, () => {
   console.log(`BillShield server running on http://localhost:${PORT}`)
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn('⚠  ANTHROPIC_API_KEY not set — Claude analysis will use demo fallback')
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn('⚠  OPENAI_API_KEY not set — analysis will use demo fallback')
   }
 })
 
