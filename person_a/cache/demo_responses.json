@@ -1,0 +1,26 @@
+{
+  "upload": {
+    "doc_id": "doc-demo-001",
+    "patient_id": "patient-sarah-demo-001",
+    "extracted_text_preview": "Demo cached upload preview.",
+    "normalized": { "cpt_codes": [], "amounts": [], "dates": [], "is_eob": false, "has_denial": false, "has_out_of_network": false, "raw": "" }
+  },
+  "analyze": {
+    "analysis_id": "analysis-demo-001",
+    "patient_id": "patient-sarah-demo-001",
+    "summary": {
+      "total_billed": 0,
+      "insurer_paid": 0,
+      "patient_owes": 0,
+      "due_date": "",
+      "provider": ""
+    },
+    "flags": [],
+    "medical": { "conditions": [], "procedures": [], "visit_summary": "", "medications_noted": [] },
+    "doctor_suggestions": [],
+    "actions": []
+  },
+  "compare": { "bill_id": "a", "eob_id": "b", "note": "demo" },
+  "generate": { "analysis_id": "analysis-demo-001", "packet": {} },
+  "history": { "patient_id": "patient-sarah-demo-001", "profile": {}, "full_profile": {} }
+}

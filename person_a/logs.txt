@@ -1,0 +1,28 @@
+BillShield — Person A work log
+==============================
+
+2026-03-28
+- Created folder `person_a/` at repo path `Billshield/person_a/` with the agreed layout:
+  main.py, routers/, agents/, core/, models/, cache/demo_responses.json
+- Migrated full FastAPI backend from removed `Billshield/backend/` into `person_a/` (same code).
+- Updated demo cache path in main.py to `person_a/cache/demo_responses.json` (env override: BILLSHIELD_DEMO_CACHE).
+- Added requirements.txt and .gitignore under person_a for venv, DB, and logs.
+- Restored Billshield repo root: removed `Billshield/backend/` and `Billshield/cache/` so the Vite frontend tree is unchanged aside from this new sibling folder.
+
+Run API (from this directory): uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+- Removed `Billshield/cache/` and all files under `Billshield/backend/` (SQLite/IDE may lock the empty `backend` folder — close editors using it and delete the folder manually if it still appears).
+- Intended layout: frontend at `Billshield/` root; Person A API only under `Billshield/person_a/`.
+
+2026-03-28 (Hour 0–1 completion)
+- Added `GET /` with links to OpenAPI and health for quick sanity checks.
+- Added `if __name__ == "__main__"` running Uvicorn (`PORT`, `BILLSHIELD_RELOAD` env).
+- Added `.env.example` for `BILLSHIELD_DB`, `BILLSHIELD_DEMO_CACHE`, `PORT`, `BILLSHIELD_RELOAD`.
+- Added `README.md` with venv + run + layout (Person A setup handoff).
+
+2026-03-28
+- `/health` now includes `database`: `ok` | `error` | `unconfigured` (quick SQLite ping for judges/deploys).
+- README notes Python 3.10+ (3.11+ recommended).
+
+---
+Append new lines below as you change Person A code (date + what changed).
