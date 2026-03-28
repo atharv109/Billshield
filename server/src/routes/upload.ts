@@ -3,7 +3,9 @@ import { v4 as uuidv4 } from 'uuid'
 import { upload } from '../middleware/upload'
 import { runPipeline } from '../pipeline/pipeline'
 import { mapFinalOutputToFrontendCase } from '../services/outputMapper'
+import { store } from '../data/store'
 import type { IntakeFile } from '../types/agentTypes'
+import type { StoredCase } from '../data/mockData'
 
 const router = Router()
 
@@ -11,27 +13,40 @@ const router = Router()
 const uploadedFiles = new Map<string, IntakeFile>()
 
 // POST /api/upload — upload one or more files
-router.post('/', upload.array('files', 10), (req, res) => {
-  const files = req.files as Express.Multer.File[]
-  if (!files || files.length === 0) {
-    res.status(400).json({ error: 'No files uploaded' })
-    return
-  }
-
-  const results = files.map((file) => {
-    const fileId = uuidv4()
-    uploadedFiles.set(fileId, {
-      file_id: fileId,
-      filename: file.originalname,
-      mimetype: file.mimetype,
-      size: file.size,
-      buffer: file.buffer,
+// Multer is invoked manually so fileFilter errors return 400 instead of 500.
+router.post(
+  '/',
+  (req, res, next) => {
+    upload.array('files', 10)(req, res, (err: unknown) => {
+      if (err) {
+        res.status(400).json({ error: err instanceof Error ? err.message : 'File upload failed' })
+        return
+      }
+      next()
     })
-    return { fileId, name: file.originalname, size: file.size, type: file.mimetype }
-  })
+  },
+  (req, res) => {
+    const files = req.files as Express.Multer.File[]
+    if (!files || files.length === 0) {
+      res.status(400).json({ error: 'No files uploaded' })
+      return
+    }
 
-  res.json({ files: results })
-})
+    const results = files.map((file) => {
+      const fileId = uuidv4()
+      uploadedFiles.set(fileId, {
+        file_id: fileId,
+        filename: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        buffer: file.buffer,
+      })
+      return { fileId, name: file.originalname, size: file.size, type: file.mimetype }
+    })
+
+    res.json({ files: results })
+  },
+)
 
 // POST /api/upload/analyze — run multi-agent pipeline on uploaded files
 router.post('/analyze', async (req, res) => {
@@ -62,10 +77,17 @@ router.post('/analyze', async (req, res) => {
     }
 
     const caseData = mapFinalOutputToFrontendCase(result as Exclude<typeof result, { error: true }>)
+
+    // Persist to store so /api/cases and /api/stats reflect real analyses.
+    store.create({ ...caseData, status: 'active', createdAt: new Date().toISOString() } as StoredCase)
+
     res.json(caseData)
   } catch (err) {
     console.error('Pipeline error:', err)
     res.status(500).json({ error: 'Analysis failed', detail: String(err) })
+  } finally {
+    // Release file buffers regardless of outcome — prevents memory accumulation
+    for (const id of fileIds) uploadedFiles.delete(id)
   }
 })
 

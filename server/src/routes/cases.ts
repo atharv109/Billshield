@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { store } from '../data/store'
-import type { CaseData } from '../data/mockData'
+import type { StoredCase } from '../data/mockData'
 
 const router = Router()
 
@@ -20,19 +20,22 @@ router.get('/:id', (req, res) => {
   res.json(c)
 })
 
-// POST /api/cases
+// POST /api/cases — manual case creation (not used by upload pipeline)
 router.post('/', (req, res) => {
-  const body = req.body as Partial<CaseData>
-  const newCase: CaseData = {
+  const body = req.body as Partial<StoredCase>
+  const newCase: StoredCase = {
     id: uuidv4(),
-    patientName: body.patientName ?? 'Unknown Patient',
-    status: body.status ?? 'active',
-    createdAt: new Date().toISOString(),
-    summary: body.summary ?? { totalBilled: 0, insurerPaid: 0, patientOwes: 0, potentialSavings: 0 },
+    eventType: body.eventType ?? 'Medical Bill Review',
+    dateOfService: body.dateOfService ?? new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    totalBilled: body.totalBilled ?? 0,
+    insurerPaid: body.insurerPaid ?? 0,
+    patientOwes: body.patientOwes ?? 0,
     documents: body.documents ?? [],
     issues: body.issues ?? [],
     actions: body.actions ?? [],
     timeline: body.timeline ?? [],
+    status: body.status ?? 'active',
+    createdAt: new Date().toISOString(),
   }
   store.create(newCase)
   res.status(201).json(newCase)
@@ -40,7 +43,7 @@ router.post('/', (req, res) => {
 
 // PATCH /api/cases/:id
 router.patch('/:id', (req, res) => {
-  const updated = store.update(req.params.id, req.body as Partial<CaseData>)
+  const updated = store.update(req.params.id, req.body as Partial<StoredCase>)
   if (!updated) {
     res.status(404).json({ error: 'Case not found' })
     return

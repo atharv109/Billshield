@@ -27,7 +27,8 @@ export async function ocrAgent(
       // Image or unknown: return empty text with low confidence
       raw_text = ''
     }
-  } catch {
+  } catch (err) {
+    console.warn(`[ocrAgent] Failed to extract text from "${filename}" (${doc_id}):`, err)
     raw_text = ''
   }
 

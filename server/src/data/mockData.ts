@@ -1,161 +1,139 @@
-export interface BillIssue {
+/**
+ * StoredCase — the single canonical type for cases in the server store.
+ *
+ * Shape matches what services/outputMapper.ts produces, plus two server-only
+ * tracking fields: status and createdAt. This ensures the pipeline output
+ * (POST /api/upload/analyze) and the cases CRUD (GET /api/cases) share one type.
+ */
+
+export interface StoredCaseDocument {
   id: string
-  type: 'duplicate' | 'upcoding' | 'unbundling' | 'not_covered' | 'billing_error' | 'itemization'
+  type: 'bill' | 'eob'
+  provider?: string
+  insurer?: string
+  amount?: number
+  paidAmount?: number
+  patientOwe?: number
+  dateOfService: string
+  position: [number, number, number]
+}
+
+export interface StoredCaseIssue {
+  id: string
   severity: 'high' | 'medium' | 'low'
   title: string
   description: string
-  amount: number
+  relatedDocIds: string[]
   confidence: number
-  documentId: string
-  actionIds: string[]
+  explanation: string
 }
 
-export interface CaseAction {
+export interface StoredCaseAction {
   id: string
-  issueId: string
-  type: 'dispute_letter' | 'appeal' | 'call_script' | 'itemized_bill' | 'eob_request'
+  issueId?: string
   title: string
-  description: string
-  template: string
-  completed: boolean
+  icon: string
+  type: 'call' | 'letter' | 'dispute'
+  whyItMatters: string
+  draft?: string
+  script?: string
 }
 
-export interface TimelineEvent {
+export interface StoredCaseTimeline {
   id: string
   label: string
-  date: string
   completed: boolean
 }
 
-export interface CaseDocument {
+export interface StoredCase {
   id: string
-  type: 'hospital_bill' | 'eob' | 'radiology_bill' | 'physician_bill'
-  provider: string
-  totalAmount: number
+  eventType: string
   dateOfService: string
-  dueDate?: string
-}
-
-export interface CaseData {
-  id: string
-  patientName: string
+  totalBilled: number
+  insurerPaid: number
+  patientOwes: number
+  documents: StoredCaseDocument[]
+  issues: StoredCaseIssue[]
+  actions: StoredCaseAction[]
+  timeline: StoredCaseTimeline[]
+  agentOutput?: unknown
+  // Server-only tracking fields — not returned by outputMapper, added at persist time
   status: 'active' | 'resolved' | 'pending'
   createdAt: string
-  summary: {
-    totalBilled: number
-    insurerPaid: number
-    patientOwes: number
-    potentialSavings: number
-  }
-  documents: CaseDocument[]
-  issues: BillIssue[]
-  actions: CaseAction[]
-  timeline: TimelineEvent[]
-  // Optional: full multi-agent output for detailed UI
-  agentOutput?: unknown
 }
 
-export const DEMO_CASES: CaseData[] = [
+export const DEMO_CASES: StoredCase[] = [
   {
     id: 'case-demo-1',
-    patientName: 'Atharv Mittal',
-    status: 'active',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    summary: {
-      totalBilled: 12840,
-      insurerPaid: 6200,
-      patientOwes: 6640,
-      potentialSavings: 4100,
-    },
+    eventType: 'Emergency Room Visit',
+    dateOfService: 'Mar 10, 2026',
+    totalBilled: 12840,
+    insurerPaid: 6200,
+    patientOwes: 6640,
     documents: [
-      { id: 'doc-1', type: 'hospital_bill', provider: 'City General Hospital', totalAmount: 8400, dateOfService: '2026-03-10', dueDate: '2026-04-10' },
-      { id: 'doc-2', type: 'eob', provider: 'BlueCross BlueShield', totalAmount: 12840, dateOfService: '2026-03-10' },
-      { id: 'doc-3', type: 'radiology_bill', provider: 'Advanced Imaging Assoc.', totalAmount: 2200, dateOfService: '2026-03-10', dueDate: '2026-04-10' },
-      { id: 'doc-4', type: 'physician_bill', provider: 'ER Physicians Group', totalAmount: 2240, dateOfService: '2026-03-10', dueDate: '2026-04-10' },
+      {
+        id: 'doc-1',
+        type: 'bill',
+        provider: 'City General Hospital',
+        amount: 8400,
+        dateOfService: 'Mar 10, 2026',
+        position: [-4, 0.8, 0],
+      },
+      {
+        id: 'doc-2',
+        type: 'eob',
+        insurer: 'BlueCross BlueShield',
+        paidAmount: 6200,
+        patientOwe: 6640,
+        dateOfService: 'Mar 10, 2026',
+        position: [4, 0.8, -0.5],
+      },
     ],
     issues: [
       {
-        id: 'issue-1',
-        type: 'duplicate',
+        id: 'iss-1',
         severity: 'high',
         title: 'Duplicate Blood Panel Charge',
-        description: 'Comprehensive metabolic panel (CPT 80053) billed twice on the same date of service. Insurance only covers one occurrence per day.',
-        amount: 420,
-        confidence: 94,
-        documentId: 'doc-1',
-        actionIds: ['action-1'],
+        description: 'CPT 80053 billed twice on the same date of service.',
+        relatedDocIds: ['doc-1'],
+        confidence: 0.94,
+        explanation:
+          'A comprehensive metabolic panel appears twice on the bill. Insurance typically covers one occurrence per day.',
       },
       {
-        id: 'issue-2',
-        type: 'upcoding',
+        id: 'iss-2',
         severity: 'high',
         title: 'Potential Upcoding — ER Level',
-        description: 'Billed as Level 4 ER visit (CPT 99284, $1,200) when documentation indicates a Level 2 visit (CPT 99282, ~$280). This is a $920 overcharge.',
-        amount: 920,
-        confidence: 88,
-        documentId: 'doc-1',
-        actionIds: ['action-2'],
-      },
-      {
-        id: 'issue-3',
-        type: 'not_covered',
-        severity: 'medium',
-        title: 'Charge Exceeds Auth Limit',
-        description: 'Radiology charge of $2,200 exceeds the $1,800 pre-authorization limit. Insurer flagged this on EOB — may be disputable.',
-        amount: 400,
-        confidence: 76,
-        documentId: 'doc-3',
-        actionIds: ['action-3'],
+        description: 'Billed as Level 4 ER visit when documentation may indicate a lower complexity visit.',
+        relatedDocIds: ['doc-1', 'doc-2'],
+        confidence: 0.88,
+        explanation:
+          'The ER visit level billed (CPT 99284) may not match the documented complexity. Worth requesting clarification from the provider.',
       },
     ],
     actions: [
       {
-        id: 'action-1',
-        issueId: 'issue-1',
-        type: 'dispute_letter',
+        id: 'act-1',
+        issueId: 'iss-1',
         title: 'Send Duplicate Charge Dispute',
-        description: 'Write to the hospital billing department citing the duplicate CPT 80053 entry.',
-        template: 'Dear Billing Department,\n\nI am writing to dispute a duplicate charge on my statement dated March 10, 2026...',
-        completed: false,
-      },
-      {
-        id: 'action-2',
-        issueId: 'issue-2',
-        type: 'appeal',
-        title: 'Appeal ER Level Upcoding',
-        description: 'File a formal appeal with the insurer citing the discrepancy between the documented visit complexity and the billed ER level.',
-        template: 'To Whom It May Concern,\n\nI am appealing claim #[CLAIM_ID] for services rendered March 10, 2026...',
-        completed: false,
-      },
-      {
-        id: 'action-3',
-        issueId: 'issue-3',
-        type: 'eob_request',
-        title: 'Request Itemized EOB Clarification',
-        description: 'Contact your insurer to request a detailed explanation of how the radiology charge was processed against the authorization.',
-        template: 'Dear [INSURER_NAME] Member Services,\n\nI am requesting clarification on how claim #[CLAIM_ID] was processed...',
-        completed: false,
+        icon: '📄',
+        type: 'letter',
+        whyItMatters: 'Duplicate charges are one of the most common billing errors.',
+        draft:
+          'Dear Billing Department,\n\nI am writing to dispute a duplicate charge on my statement dated March 10, 2026. CPT code 80053 appears twice...',
       },
     ],
     timeline: [
-      { id: 'tl-1', label: 'ER Visit', date: '2026-03-10', completed: true },
-      { id: 'tl-2', label: 'Bill Received', date: '2026-03-18', completed: true },
-      { id: 'tl-3', label: 'EOB Arrived', date: '2026-03-22', completed: true },
-      { id: 'tl-4', label: 'AI Analysis', date: '2026-03-28', completed: true },
-      { id: 'tl-5', label: 'Dispute Sent', date: '', completed: false },
-      { id: 'tl-6', label: 'Appeal Filed', date: '', completed: false },
-      { id: 'tl-7', label: 'Response Due', date: '', completed: false },
-      { id: 'tl-8', label: 'Resolved', date: '', completed: false },
+      { id: 'tl-1', label: 'Bill uploaded', completed: true },
+      { id: 'tl-2', label: 'Text extracted', completed: true },
+      { id: 'tl-3', label: 'Issues flagged', completed: true },
+      { id: 'tl-4', label: 'Actions generated', completed: true },
+      { id: 'tl-5', label: 'Provider contacted', completed: false },
+      { id: 'tl-6', label: 'Insurer contacted', completed: false },
+      { id: 'tl-7', label: 'Awaiting reply', completed: false },
+      { id: 'tl-8', label: 'Resolved', completed: false },
     ],
+    status: 'active',
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
   },
 ]
-
-// Aggregate stats for /api/stats
-export const MOCK_STATS = {
-  totalBilled: 47320,
-  totalSaved: 12840,
-  activeCases: 3,
-  totalIssues: 14,
-  resolvedCases: 2,
-  pendingCases: 1,
-}
