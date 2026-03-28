@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '../store/useAppStore'
 
+const ease = [0.4, 0, 0.2, 1] as const
+
 export function TimelineBar() {
   const scene = useAppStore((s) => s.scene)
   const caseData = useAppStore((s) => s.caseData)
@@ -11,10 +13,8 @@ export function TimelineBar() {
 
   if (!caseData) return null
 
-  // Derive dynamic completion based on completed actions
   const events = caseData.timeline.map((event) => {
     if (event.completed) return { ...event, completed: true }
-    // Mark 'Provider contacted' when first action done, 'Insurer contacted' when second
     if (event.id === 'tl-5' && completedActions.length >= 1) return { ...event, completed: true }
     if (event.id === 'tl-6' && completedActions.length >= 2) return { ...event, completed: true }
     if (event.id === 'tl-7' && completedActions.length >= 3) return { ...event, completed: true }
@@ -29,71 +29,87 @@ export function TimelineBar() {
       {visible && (
         <motion.div
           key="timeline"
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 20 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="absolute bottom-8 left-1/2"
+          exit={{ opacity: 0, y: 16 }}
+          transition={{ duration: 0.5, delay: 0.2, ease }}
           style={{
-            zIndex: 20,
+            position: 'absolute',
+            bottom: '28px',
+            left: '50%',
             transform: 'translateX(-50%)',
-            maxWidth: '720px',
+            zIndex: 20,
+            maxWidth: '680px',
             width: 'calc(100vw - 680px)',
-            minWidth: '300px',
+            minWidth: '320px',
           }}
         >
           <div
-            className="glass rounded-xl px-5 py-3"
-            style={{ borderColor: 'rgba(74, 158, 255, 0.15)' }}
+            style={{
+              background: '#08101a',
+              border: '1px solid #1a2a45',
+              borderRadius: '14px',
+              padding: '16px 20px',
+            }}
           >
-            {/* Header */}
-            <div className="flex items-center gap-2 mb-3">
-              <span className="font-mono text-xs tracking-widest" style={{ color: '#3a6a9a' }}>
-                CASE TIMELINE
-              </span>
+            <div
+              style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '9px',
+                color: '#1a3a5a',
+                letterSpacing: '0.14em',
+                marginBottom: '14px',
+              }}
+            >
+              CASE TIMELINE
             </div>
 
-            {/* Timeline track */}
-            <div className="relative flex items-center justify-between">
-              {/* Track line */}
+            {/* Track */}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* Background track */}
               <div
-                className="absolute left-0 right-0 h-px"
-                style={{ background: 'rgba(42, 58, 92, 0.6)', top: '10px' }}
+                style={{
+                  position: 'absolute',
+                  left: 0, right: 0,
+                  height: '1px',
+                  background: '#1a2a45',
+                  top: '10px',
+                }}
               />
 
               {/* Progress fill */}
               <motion.div
-                className="absolute left-0 h-px"
                 style={{
-                  background: 'linear-gradient(90deg, #00cc88, #4a9eff)',
+                  position: 'absolute',
+                  left: 0,
+                  height: '1px',
+                  background: '#3a7fff',
                   top: '10px',
-                  boxShadow: '0 0 8px rgba(0, 204, 136, 0.4)',
+                  boxShadow: '0 0 6px #3a7fff88',
                 }}
                 animate={{
                   width: lastCompleted < 0 ? '0%'
                     : `${(lastCompleted / (events.length - 1)) * 100}%`,
                 }}
-                transition={{ duration: 0.8, ease: 'easeOut' }}
+                transition={{ duration: 0.7, ease }}
               />
 
               {/* Nodes */}
               {events.map((event, i) => (
-                <div key={event.id} className="relative flex flex-col items-center">
+                <div key={event.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
                   <motion.div
                     animate={{
-                      backgroundColor: event.completed ? '#00cc88' : '#1a2540',
-                      boxShadow: event.completed
-                        ? '0 0 8px rgba(0, 204, 136, 0.6)'
-                        : 'none',
-                      borderColor: event.completed ? '#00cc88' : '#2a3a5c',
+                      backgroundColor: event.completed ? '#3a7fff' : '#0d1826',
+                      borderColor: event.completed ? '#3a7fff' : '#1a2a45',
+                      boxShadow: event.completed ? '0 0 8px #3a7fff88' : 'none',
                     }}
-                    transition={{ duration: 0.4, delay: i * 0.05 }}
+                    transition={{ duration: 0.4, delay: i * 0.04 }}
                     style={{
                       width: '20px',
                       height: '20px',
                       borderRadius: '50%',
-                      border: '2px solid #2a3a5c',
-                      background: '#1a2540',
+                      border: '2px solid #1a2a45',
+                      background: '#0d1826',
                       zIndex: 1,
                       display: 'flex',
                       alignItems: 'center',
@@ -101,15 +117,17 @@ export function TimelineBar() {
                     }}
                   >
                     {event.completed && (
-                      <span style={{ fontSize: '9px', color: '#001a10', fontWeight: 700 }}>✓</span>
+                      <span style={{ fontSize: '9px', color: '#fff', fontWeight: 700 }}>✓</span>
                     )}
                   </motion.div>
                   <div
-                    className="mt-1.5 text-center font-mono"
                     style={{
+                      marginTop: '6px',
                       fontSize: '8px',
-                      color: event.completed ? '#6bcca8' : '#3a5a7a',
-                      maxWidth: '60px',
+                      fontFamily: 'JetBrains Mono, monospace',
+                      color: event.completed ? '#3a7fff' : '#1a3a5a',
+                      maxWidth: '62px',
+                      textAlign: 'center',
                       lineHeight: 1.3,
                       whiteSpace: 'nowrap',
                     }}

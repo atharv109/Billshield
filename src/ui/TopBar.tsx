@@ -12,6 +12,8 @@ const SCENE_LABELS: Record<string, string> = {
   resolution:     'CASE UNDER CONTROL',
 }
 
+const ease = [0.4, 0, 0.2, 1] as const
+
 export function TopBar() {
   const scene = useAppStore((s) => s.scene)
   const resetCase = useAppStore((s) => s.resetCase)
@@ -19,32 +21,42 @@ export function TopBar() {
 
   return (
     <div
-      className="absolute top-0 left-0 right-0 flex items-center justify-between px-8 py-4"
-      style={{ zIndex: 30, pointerEvents: 'none' }}
+      style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '18px 28px',
+        zIndex: 30,
+        pointerEvents: 'none',
+      }}
     >
       {/* Logo */}
-      <div
-        className="flex items-center gap-3"
-        style={{ pointerEvents: 'auto' }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', pointerEvents: 'auto' }}>
         <div
           style={{
             width: '28px',
             height: '28px',
-            borderRadius: '6px',
-            background: 'linear-gradient(135deg, #1a3a6a, #2a5aaa)',
-            border: '1px solid rgba(74, 158, 255, 0.4)',
+            borderRadius: '7px',
+            background: '#0d1826',
+            border: '1px solid #1a2a45',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '14px',
+            fontSize: '13px',
           }}
         >
           🛡
         </div>
         <span
-          className="font-sans font-semibold text-sm tracking-wide"
-          style={{ color: '#c0d0e8', letterSpacing: '0.04em' }}
+          style={{
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '13px',
+            fontWeight: 600,
+            color: '#8ab0d0',
+            letterSpacing: '0.02em',
+          }}
         >
           BillShield
         </span>
@@ -55,40 +67,48 @@ export function TopBar() {
         {label && (
           <motion.div
             key={label}
-            initial={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.35 }}
-            className="font-mono text-xs tracking-widest"
-            style={{ color: '#3a6a9a', letterSpacing: '0.15em' }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.3, ease }}
+            style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '10px',
+              color: '#1a3a5a',
+              letterSpacing: '0.15em',
+            }}
           >
             {label}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Reset button (non-landing scenes) */}
-      <div style={{ pointerEvents: 'auto', minWidth: '80px', textAlign: 'right' }}>
+      {/* Reset button */}
+      <div style={{ minWidth: '90px', textAlign: 'right', pointerEvents: 'auto' }}>
         {scene !== 'landing' && (
           <motion.button
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             onClick={resetCase}
-            className="font-mono text-xs px-3 py-1.5 rounded-lg transition-all"
             style={{
-              background: 'rgba(42, 58, 92, 0.4)',
-              border: '1px solid rgba(42, 58, 92, 0.6)',
-              color: '#4a6a8a',
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '10px',
+              padding: '6px 12px',
+              borderRadius: '7px',
+              background: '#08101a',
+              border: '1px solid #1a2a45',
+              color: '#2a4a6a',
               cursor: 'pointer',
               letterSpacing: '0.05em',
+              transition: 'color 0.2s, border-color 0.2s',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#8ab0d0'
-              e.currentTarget.style.borderColor = 'rgba(74, 158, 255, 0.3)'
+              e.currentTarget.style.color = '#6a8ab0'
+              e.currentTarget.style.borderColor = '#2a4a7a'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#4a6a8a'
-              e.currentTarget.style.borderColor = 'rgba(42, 58, 92, 0.6)'
+              e.currentTarget.style.color = '#2a4a6a'
+              e.currentTarget.style.borderColor = '#1a2a45'
             }}
           >
             ← New Case

@@ -6,9 +6,6 @@ import { useAppStore } from '../store/useAppStore'
 import { BILL_STORM_FRAGMENTS } from '../data/mockCase'
 
 interface FragmentData {
-  text: string
-  position: THREE.Vector3
-  rotation: THREE.Euler
   orbitRadius: number
   orbitSpeed: number
   orbitPhase: number
@@ -20,115 +17,91 @@ interface FragmentData {
 export function BillStorm() {
   const scene = useAppStore((s) => s.scene)
   const groupRef = useRef<THREE.Group>(null)
+  const fragmentRefs = useRef<(THREE.Group | null)[]>([])
 
   const fragments = useMemo<FragmentData[]>(() => {
-    return BILL_STORM_FRAGMENTS.map((text, i) => {
+    return BILL_STORM_FRAGMENTS.map((_, i) => {
       const angle = (i / BILL_STORM_FRAGMENTS.length) * Math.PI * 2
-      const radius = 4 + Math.random() * 8
+      // Push far from center — min radius 10, max 18
+      const radius = 10 + Math.random() * 8
+      // Keep Y away from center: either high up or low
+      const ySign = Math.random() > 0.5 ? 1 : -1
+      const yMag = 3.5 + Math.random() * 5
       return {
-        text,
-        position: new THREE.Vector3(
-          Math.cos(angle) * radius,
-          (Math.random() - 0.5) * 10,
-          Math.sin(angle) * radius - 5
-        ),
-        rotation: new THREE.Euler(
-          (Math.random() - 0.5) * 0.6,
-          (Math.random() - 0.5) * Math.PI,
-          (Math.random() - 0.5) * 0.4
-        ),
         orbitRadius: radius,
-        orbitSpeed: (Math.random() * 0.08 + 0.03) * (Math.random() > 0.5 ? 1 : -1),
+        orbitSpeed: (Math.random() * 0.04 + 0.01) * (Math.random() > 0.5 ? 1 : -1),
         orbitPhase: angle,
-        orbitY: (Math.random() - 0.5) * 10,
-        scale: 0.7 + Math.random() * 0.8,
-        opacity: 0.3 + Math.random() * 0.5,
+        orbitY: ySign * yMag,
+        scale: 0.25 + Math.random() * 0.28,
+        opacity: 0.08 + Math.random() * 0.11,
       }
     })
   }, [])
-
-  const fragmentRefs = useRef<(THREE.Group | null)[]>([])
 
   useFrame((state) => {
     if (!groupRef.current) return
     const t = state.clock.elapsedTime
 
-    const isVisible = scene === 'landing' || scene === 'intake' || scene === 'parsing'
-    const slowdown =
-      scene === 'intake' ? 0.3
-      : scene === 'parsing' ? 0.15
-      : scene === 'reconstruction' ? 0.05
-      : 1.0
+    // Very slow global rotation — atmospheric drift only
+    groupRef.current.rotation.y = t * 0.008
 
-    // Rotate whole group slowly
-    groupRef.current.rotation.y = t * 0.015
+    const isLanding = scene === 'landing'
+    const isIntake = scene === 'intake' || scene === 'parsing'
 
     fragments.forEach((f, i) => {
       const ref = fragmentRefs.current[i]
       if (!ref) return
 
-      const phase = f.orbitPhase + t * f.orbitSpeed * slowdown
+      const phase = f.orbitPhase + t * f.orbitSpeed
       const x = Math.cos(phase) * f.orbitRadius
-      const z = Math.sin(phase) * f.orbitRadius - 5
-      const y = f.orbitY + Math.sin(t * 0.3 + f.orbitPhase) * 0.5
+      const z = Math.sin(phase) * f.orbitRadius - 8
+      const y = f.orbitY + Math.sin(t * 0.18 + f.orbitPhase) * 0.6
 
       ref.position.set(x, y, z)
-      ref.rotation.y = -groupRef.current!.rotation.y + Math.sin(t * 0.2 + i) * 0.3
-      ref.rotation.x = Math.sin(t * 0.15 + i * 0.7) * 0.1
+      ref.rotation.y = -groupRef.current!.rotation.y
 
-      // Fade out when not landing
-      const mat = ref.children[0] as any
-      if (mat && mat.material) {
-        const targetOp = isVisible ? f.opacity : 0
-        mat.material.opacity += (targetOp - mat.material.opacity) * 0.05
+      // Fade per scene — completely invisible in analysis+
+      const targetOp = isLanding
+        ? f.opacity
+        : isIntake
+        ? f.opacity * 0.3
+        : 0
+
+      const textMesh = ref.children[0] as THREE.Mesh
+      if (textMesh && (textMesh as any).material) {
+        const mat = (textMesh as any).material
+        if (mat.opacity !== undefined) {
+          mat.opacity += (targetOp - mat.opacity) * 0.1
+        }
       }
     })
   })
 
-  // Color based on content
   const getColor = (text: string) => {
-    if (text.includes('$') && parseFloat(text.replace('$', '').replace(',', '')) > 1000)
-      return '#ff5555'
-    if (text.includes('Due') || text.includes('Past') || text.includes('Denial'))
-      return '#ffaa00'
-    if (text.includes('EOB') || text.includes('In-Network'))
-      return '#4a9eff'
-    return '#7a9cc0'
+    if (/\$[0-9,]+/.test(text) && parseFloat(text.replace(/[$,]/g, '')) > 1000)
+      return '#cc3344'
+    if (/Due|Past|Denial|Auth/.test(text)) return '#4466aa'
+    return '#2a4a70'
   }
 
   return (
     <group ref={groupRef}>
-      {fragments.map((f, i) => (
+      {BILL_STORM_FRAGMENTS.map((text, i) => (
         <group
           key={i}
           ref={(el) => { fragmentRefs.current[i] = el }}
-          position={f.position.toArray()}
-          rotation={[f.rotation.x, f.rotation.y, f.rotation.z]}
-          scale={f.scale}
+          scale={fragments[i].scale}
         >
           <Text
-            fontSize={0.3}
-            color={getColor(f.text)}
+            fontSize={0.22}
+            color={getColor(text)}
             anchorX="center"
             anchorY="middle"
-            font={undefined}
-            fillOpacity={f.opacity}
-            outlineWidth={0.008}
-            outlineColor="#0a1020"
+            fillOpacity={fragments[i].opacity}
+            outlineWidth={0}
           >
-            {f.text}
+            {text}
           </Text>
-          {/* Card background */}
-          <mesh position={[0, 0, -0.01]}>
-            <planeGeometry args={[f.text.length * 0.2 + 0.3, 0.45]} />
-            <meshBasicMaterial
-              color="#0d1a2e"
-              transparent
-              opacity={0.25}
-              side={THREE.DoubleSide}
-              depthWrite={false}
-            />
-          </mesh>
         </group>
       ))}
     </group>

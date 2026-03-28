@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '../store/useAppStore'
 import type { Issue } from '../data/mockCase'
 
+const ease = [0.4, 0, 0.2, 1] as const
+
 export function IssueCards() {
   const scene = useAppStore((s) => s.scene)
   const caseData = useAppStore((s) => s.caseData)
@@ -19,55 +21,67 @@ export function IssueCards() {
       {visible && (
         <motion.div
           key="issues"
-          initial={{ opacity: 0, x: 40 }}
+          initial={{ opacity: 0, x: 24 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 40 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="absolute top-8 right-8 flex flex-col gap-3"
-          style={{ zIndex: 20, width: '280px' }}
+          exit={{ opacity: 0, x: 24 }}
+          transition={{ duration: 0.5, delay: 0.1, ease }}
+          style={{
+            position: 'absolute',
+            top: '72px',
+            right: '28px',
+            zIndex: 20,
+            width: '272px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+          }}
         >
           {/* Header */}
-          <div className="flex items-center gap-2 px-1">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 2px' }}>
             <div
-              className="w-2 h-2 rounded-full"
-              style={{ background: '#ff4444', boxShadow: '0 0 8px #ff4444' }}
+              style={{
+                width: '6px', height: '6px', borderRadius: '50%',
+                background: '#ff3344',
+                boxShadow: '0 0 8px #ff3344',
+              }}
             />
             <span
-              className="font-mono text-xs tracking-widest"
-              style={{ color: '#ff4444' }}
+              style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '10px',
+                color: '#ff3344',
+                letterSpacing: '0.14em',
+                flex: 1,
+              }}
             >
               ISSUE SCANNER
             </span>
             <span
-              className="ml-auto font-mono text-xs px-1.5 py-0.5 rounded"
               style={{
-                background: 'rgba(255, 68, 68, 0.1)',
-                color: '#ff6666',
-                border: '1px solid rgba(255, 68, 68, 0.3)',
+                fontSize: '10px',
+                fontFamily: 'JetBrains Mono, monospace',
+                padding: '1px 7px',
+                borderRadius: '4px',
+                background: 'rgba(255, 51, 68, 0.1)',
+                border: '1px solid rgba(255, 51, 68, 0.25)',
+                color: '#ff5566',
               }}
             >
               {caseData.issues.length}
             </span>
           </div>
 
-          {/* Issue cards */}
           {caseData.issues.map((issue, i) => (
             <motion.div
               key={issue.id}
-              initial={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 + i * 0.12, duration: 0.4 }}
+              transition={{ delay: 0.15 + i * 0.08, duration: 0.4, ease }}
             >
               <IssueCard
                 issue={issue}
                 selected={selectedIssue?.id === issue.id}
-                onClick={() => {
-                  if (selectedIssue?.id === issue.id) {
-                    selectIssue(null)
-                  } else {
-                    selectIssue(issue)
-                  }
-                }}
+                onClick={() => selectIssue(selectedIssue?.id === issue.id ? null : issue)}
               />
             </motion.div>
           ))}
@@ -78,91 +92,75 @@ export function IssueCards() {
 }
 
 function IssueCard({ issue, selected, onClick }: {
-  issue: Issue
-  selected: boolean
-  onClick: () => void
+  issue: Issue; selected: boolean; onClick: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
-  const colors = {
-    high:   { border: 'rgba(255, 68, 68, 0.5)',  bg: 'rgba(255, 68, 68, 0.06)',  tag: '#ff4444', label: 'HIGH' },
-    medium: { border: 'rgba(255, 170, 0, 0.5)',  bg: 'rgba(255, 170, 0, 0.06)',  tag: '#ffaa00', label: 'MEDIUM' },
-    low:    { border: 'rgba(74, 158, 255, 0.4)', bg: 'rgba(74, 158, 255, 0.06)', tag: '#4a9eff', label: 'LOW' },
+  const severityStyle = {
+    high:   { border: 'rgba(255, 51, 68, 0.45)',  bg: 'rgba(255, 51, 68, 0.05)',  tag: '#ff3344', label: 'HIGH' },
+    medium: { border: 'rgba(58, 127, 255, 0.4)',  bg: 'rgba(58, 127, 255, 0.05)', tag: '#3a7fff', label: 'MED' },
+    low:    { border: 'rgba(58, 127, 255, 0.2)',  bg: 'rgba(58, 127, 255, 0.03)', tag: '#2a5aaa', label: 'LOW' },
   }
-  const c = colors[issue.severity]
+  const s = severityStyle[issue.severity]
 
   return (
     <div
-      className="glass rounded-xl overflow-hidden cursor-pointer transition-all duration-200"
       style={{
-        border: selected ? c.border : `1px solid ${c.border}`,
-        background: selected ? c.bg : 'rgba(10, 13, 20, 0.7)',
-        boxShadow: selected ? `0 0 20px ${c.tag}30` : 'none',
+        background: selected ? s.bg : '#08101a',
+        border: `1px solid ${selected ? s.border : '#1a2a45'}`,
+        borderRadius: '12px',
+        overflow: 'hidden',
+        cursor: 'pointer',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        boxShadow: selected ? `0 0 20px ${s.tag}22` : 'none',
       }}
       onClick={() => { onClick(); setExpanded(!expanded) }}
     >
-      <div className="p-3">
-        <div className="flex items-start justify-between gap-2 mb-1.5">
-          <div className="flex items-center gap-2">
-            <span
-              className="px-1.5 py-0.5 rounded text-xs font-mono font-bold"
-              style={{
-                background: `${c.tag}20`,
-                color: c.tag,
-                fontSize: '9px',
-                letterSpacing: '0.08em',
-              }}
-            >
-              {c.label}
-            </span>
-          </div>
+      <div style={{ padding: '12px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
           <span
-            className="text-xs font-mono"
-            style={{ color: '#6b8ab0' }}
+            style={{
+              fontSize: '9px',
+              fontFamily: 'JetBrains Mono, monospace',
+              fontWeight: 700,
+              letterSpacing: '0.1em',
+              padding: '2px 6px',
+              borderRadius: '3px',
+              background: `${s.tag}18`,
+              border: `1px solid ${s.tag}40`,
+              color: s.tag,
+            }}
           >
+            {s.label}
+          </span>
+          <span style={{ fontSize: '10px', fontFamily: 'JetBrains Mono, monospace', color: '#2a4a6a' }}>
             {Math.round(issue.confidence * 100)}%
           </span>
         </div>
-
-        <div className="text-sm font-medium mb-1" style={{ color: '#e0eaff' }}>
+        <div style={{ fontSize: '12px', fontWeight: 600, color: '#c8d8f0', marginBottom: '4px', lineHeight: 1.35 }}>
           {issue.title}
         </div>
-        <div className="text-xs" style={{ color: '#6b8ab0', lineHeight: 1.5 }}>
+        <div style={{ fontSize: '10px', color: '#4a6280', lineHeight: 1.5 }}>
           {issue.description}
         </div>
       </div>
 
-      {/* Expanded explanation */}
       <AnimatePresence>
         {expanded && selected && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.22 }}
           >
             <div
-              className="px-3 pb-3"
               style={{
-                borderTop: `1px solid ${c.border}`,
-                paddingTop: '10px',
+                padding: '10px 14px 12px',
+                borderTop: `1px solid ${s.border}`,
               }}
             >
-              <div
-                className="text-xs leading-relaxed"
-                style={{ color: '#8a9ab8', lineHeight: 1.6 }}
-              >
+              <div style={{ fontSize: '10px', color: '#6a8ab0', lineHeight: 1.65 }}>
                 {issue.explanation}
-              </div>
-              <div
-                className="mt-2 text-xs"
-                style={{ color: c.tag, cursor: 'pointer', fontWeight: 500 }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  // Scroll to related documents — handled via store scene change
-                }}
-              >
-                ↗ View related documents
               </div>
             </div>
           </motion.div>

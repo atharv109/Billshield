@@ -7,14 +7,21 @@ import { DocumentCard } from './DocumentCard'
 import { ScanBeam } from './ScanBeam'
 
 const FILE_POSITIONS: [number, number, number][] = [
-  [-3.2, 0, 0],
-  [-1.0, 0, 0],
-  [1.2, 0, 0],
-  [3.4, 0, 0],
+  [-2.1, 0, 0],
+  [-0.7, 0, 0],
+  [0.7, 0, 0],
+  [2.1, 0, 0],
 ]
 
-const FILE_TYPE_MAP: ('bill' | 'eob' | 'radiology' | 'estimate')[] = [
+const FILE_TYPE_MAP: ('bill' | 'eob' | 'radiology' | 'bill')[] = [
   'bill', 'eob', 'radiology', 'bill',
+]
+
+const INTAKE_LABELS = [
+  { title: 'Hospital Bill', sub: 'St. Vincent' },
+  { title: 'Explanation of Benefits', sub: 'BlueCross' },
+  { title: 'Radiology Bill', sub: 'Valley Radiology' },
+  { title: 'Physician Invoice', sub: 'ER Physicians Group' },
 ]
 
 export function IntakePortal() {
@@ -23,26 +30,23 @@ export function IntakePortal() {
   const parsingProgress = useAppStore((s) => s.parsingProgress)
   const platformRef = useRef<THREE.Mesh>(null)
   const ringRef = useRef<THREE.Mesh>(null)
+  const opacityRef = useRef(0)
   const [scanningFile, setScanningFile] = useState(0)
   const [scannedFiles, setScannedFiles] = useState<Set<number>>(new Set())
 
   const visible = scene === 'intake' || scene === 'parsing' || scene === 'reconstruction'
 
-  useFrame((state, delta) => {
-    if (!platformRef.current) return
-    const t = state.clock.elapsedTime
+  useFrame((_, delta) => {
+    const targetOp = visible ? 1 : 0
+    opacityRef.current += (targetOp - opacityRef.current) * delta * 1.5
 
-    // Platform pulse
-    platformRef.current.rotation.y = t * 0.1
-    const mat = platformRef.current.material as THREE.MeshPhysicalMaterial
-    const targetOp = visible ? 0.6 : 0
-    mat.opacity += (targetOp - mat.opacity) * delta * 2
-
-    // Ring rotation
+    if (platformRef.current) {
+      const mat = platformRef.current.material as THREE.MeshPhysicalMaterial
+      mat.opacity = opacityRef.current * 0.5
+    }
     if (ringRef.current) {
-      ringRef.current.rotation.z = t * 0.5
       const ringMat = ringRef.current.material as THREE.MeshBasicMaterial
-      const targetRingOp = scene === 'parsing' ? 0.7 : 0
+      const targetRingOp = scene === 'parsing' ? opacityRef.current * 0.6 : 0
       ringMat.opacity += (targetRingOp - ringMat.opacity) * delta * 2
     }
   })
@@ -54,29 +58,28 @@ export function IntakePortal() {
     }
   }
 
-  if (!visible) return null
+  if (!visible && opacityRef.current < 0.01) return null
 
   return (
-    <group position={[0, -2.5, 0]}>
-      {/* Glass platform disc */}
-      <mesh ref={platformRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-        <circleGeometry args={[6, 64]} />
+    <group position={[0, -2.2, 0]}>
+      {/* Glass platform disc — smaller radius */}
+      <mesh ref={platformRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[4, 64]} />
         <meshPhysicalMaterial
-          color="#0d1a30"
-          transmission={0.5}
+          color="#050c18"
           roughness={0.05}
           transparent
-          opacity={0.6}
-          emissive="#1a3a6a"
-          emissiveIntensity={0.15}
+          opacity={0}
+          emissive="#0a1e40"
+          emissiveIntensity={0.3}
         />
       </mesh>
 
-      {/* Scanning ring */}
+      {/* Scan ring */}
       <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <ringGeometry args={[5.4, 5.8, 64]} />
+        <ringGeometry args={[3.6, 3.9, 64]} />
         <meshBasicMaterial
-          color="#00d4ff"
+          color="#3a7fff"
           transparent
           opacity={0}
           depthWrite={false}
@@ -86,43 +89,50 @@ export function IntakePortal() {
 
       {/* Platform edge glow */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <ringGeometry args={[5.8, 6.2, 64]} />
+        <ringGeometry args={[3.9, 4.1, 64]} />
         <meshBasicMaterial
-          color="#4a9eff"
+          color="#1a3a7a"
           transparent
-          opacity={0.3}
+          opacity={0.25}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
         />
       </mesh>
 
-      {/* Parsing progress ring */}
+      {/* Parsing progress */}
       {scene === 'parsing' && (
-        <Html position={[0, 2, 0]} center style={{ pointerEvents: 'none' }}>
-          <div style={{
-            fontFamily: 'JetBrains Mono, monospace',
-            color: '#00d4ff',
-            fontSize: '11px',
-            textAlign: 'center',
-            letterSpacing: '0.1em',
-          }}>
-            <div style={{ marginBottom: '4px' }}>ANALYZING DOCUMENTS</div>
-            <div style={{
-              width: '140px',
-              height: '3px',
-              background: 'rgba(74,158,255,0.2)',
-              borderRadius: '2px',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                height: '100%',
-                width: `${parsingProgress}%`,
-                background: 'linear-gradient(90deg, #00d4ff, #4a9eff)',
-                transition: 'width 0.2s ease',
-                borderRadius: '2px',
-              }} />
+        <Html position={[0, 2.2, 0]} center style={{ pointerEvents: 'none' }}>
+          <div
+            style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              color: '#3a7fff',
+              fontSize: '10px',
+              textAlign: 'center',
+              letterSpacing: '0.12em',
+            }}
+          >
+            <div style={{ marginBottom: '6px' }}>ANALYZING DOCUMENTS</div>
+            <div
+              style={{
+                width: '130px',
+                height: '2px',
+                background: 'rgba(58, 127, 255, 0.15)',
+                borderRadius: '1px',
+                overflow: 'hidden',
+                margin: '0 auto',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: `${parsingProgress}%`,
+                  background: '#3a7fff',
+                  transition: 'width 0.25s ease',
+                  borderRadius: '1px',
+                }}
+              />
             </div>
-            <div style={{ marginTop: '4px', color: '#6b8ab0' }}>
+            <div style={{ marginTop: '5px', color: '#2a4a7a' }}>
               {Math.round(parsingProgress)}%
             </div>
           </div>
@@ -131,35 +141,33 @@ export function IntakePortal() {
 
       {/* Document cards */}
       {uploadedFiles.map((file, i) => {
-        const pos = FILE_POSITIONS[i] ?? [i * 3 - 4, 0, 0]
-        const adjustedPos: [number, number, number] = [pos[0], pos[1] + 1.2, pos[2]]
+        const pos = FILE_POSITIONS[i] ?? [i * 2 - 3, 0, 0]
+        const cardPos: [number, number, number] = [pos[0], pos[1] + 1.15, pos[2]]
         const isScanning = scene === 'parsing' && scanningFile === i && !scannedFiles.has(i)
         const isScanned = scannedFiles.has(i)
+        const label = INTAKE_LABELS[i] ?? { title: 'Document', sub: '' }
 
         return (
           <group key={file.id}>
             <DocumentCard
-              position={adjustedPos}
-              title={file.name.replace('.pdf', '').replace(/_/g, ' ').toUpperCase()}
-              subtitle={`${(file.size / 1024).toFixed(0)} KB`}
+              position={cardPos}
+              width={2.2}
+              height={1.45}
+              title={label.title}
+              subtitle={isScanned ? '✓ Parsed' : label.sub}
               type={FILE_TYPE_MAP[i] ?? 'bill'}
               highlighted={isScanning}
-              highlightColor="#00d4ff"
-              floatAmplitude={scene === 'intake' ? 0.08 : 0}
+              highlightColor="#3a7fff"
+              floatAmplitude={scene === 'intake' ? 0.06 : 0}
             />
             {isScanning && (
               <ScanBeam
-                position={[adjustedPos[0], adjustedPos[1], adjustedPos[2]]}
-                width={2.8}
-                height={1.8}
+                position={[cardPos[0], cardPos[1], cardPos[2]]}
+                width={2.2}
+                height={1.45}
                 active={isScanning}
                 onComplete={() => handleScanComplete(i)}
               />
-            )}
-            {isScanned && (
-              <Html position={[adjustedPos[0], adjustedPos[1] - 1.2, adjustedPos[2]]} center style={{ pointerEvents: 'none' }}>
-                <div style={{ color: '#00cc88', fontSize: '10px', fontFamily: 'monospace' }}>✓ PARSED</div>
-              </Html>
             )}
           </group>
         )

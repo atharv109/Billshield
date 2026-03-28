@@ -4,14 +4,14 @@ import * as THREE from 'three'
 import { useAppStore } from '../store/useAppStore'
 
 const SCENE_CAMERAS: Record<string, { pos: [number, number, number]; target: [number, number, number] }> = {
-  landing:        { pos: [0, 0, 14],  target: [0, 0, 0] },
-  intake:         { pos: [0, 1, 10],  target: [0, 0, 0] },
-  parsing:        { pos: [0, 1, 8],   target: [0, 0, 0] },
-  reconstruction: { pos: [3, 2, 10],  target: [0, 0, 0] },
-  analysis:       { pos: [0, 1, 11],  target: [0, 0.5, 0] },
-  issue:          { pos: [0, 0, 7],   target: [0, 0, -2] },
-  action:         { pos: [-4, 1, 9],  target: [-2, 0, 0] },
-  resolution:     { pos: [0, 2, 12],  target: [0, 0, 0] },
+  landing:        { pos: [0, 0.5, 15],  target: [0, 0, 0] },
+  intake:         { pos: [0, 1.5, 13],  target: [0, 0.5, 0] },
+  parsing:        { pos: [0, 1.5, 11],  target: [0, 0.5, 0] },
+  reconstruction: { pos: [1, 1.5, 12],  target: [0, 0.5, -1] },
+  analysis:       { pos: [0, 2, 13],    target: [0, 0.5, -1] },
+  issue:          { pos: [0, 0.5, 8],   target: [0, 0, -2] },
+  action:         { pos: [-3, 1.5, 11], target: [-1, 0, 0] },
+  resolution:     { pos: [0, 2.5, 14],  target: [0, 0, 0] },
 }
 
 export function CameraRig() {
@@ -73,10 +73,10 @@ export function CameraRig() {
       tp.z + scrollDelta.current
     )
 
-    camera.position.lerp(finalPos, delta * 1.8)
+    camera.position.lerp(finalPos, delta * 1.2)
 
     // Smooth look-at
-    currentLook.current.lerp(targetLook.current, delta * 2)
+    currentLook.current.lerp(targetLook.current, delta * 1.4)
     camera.lookAt(currentLook.current)
   })
 

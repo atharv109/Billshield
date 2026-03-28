@@ -9,9 +9,7 @@ export function UploadZone() {
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
-      if (acceptedFiles.length > 0) {
-        simulateUpload(acceptedFiles)
-      }
+      if (acceptedFiles.length > 0) simulateUpload(acceptedFiles)
       setDragOver(false)
     },
     [simulateUpload]
@@ -21,10 +19,7 @@ export function UploadZone() {
     onDrop,
     onDragEnter: () => setDragOver(true),
     onDragLeave: () => setDragOver(false),
-    accept: {
-      'application/pdf': ['.pdf'],
-      'image/*': ['.jpg', '.jpeg', '.png'],
-    },
+    accept: { 'application/pdf': ['.pdf'], 'image/*': ['.jpg', '.jpeg', '.png'] },
     multiple: true,
   })
 
@@ -34,35 +29,32 @@ export function UploadZone() {
     <motion.div
       {...(getRootProps() as any)}
       animate={{
-        scale: active ? 1.03 : 1,
-        boxShadow: active
-          ? '0 0 30px rgba(74, 158, 255, 0.4)'
-          : '0 0 0px rgba(74, 158, 255, 0)',
+        borderColor: active ? '#3a7fff' : '#1a2a45',
+        boxShadow: active ? '0 0 24px rgba(58,127,255,0.2)' : '0 0 0px transparent',
       }}
       transition={{ duration: 0.2 }}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        padding: '12px 24px',
-        borderRadius: '8px',
+        padding: '11px 22px',
+        borderRadius: '9px',
         cursor: 'pointer',
-        background: active
-          ? 'rgba(74, 158, 255, 0.2)'
-          : 'rgba(74, 158, 255, 0.12)',
-        border: `1px solid ${active ? 'rgba(74, 158, 255, 0.7)' : 'rgba(74, 158, 255, 0.4)'}`,
-        color: '#e0eaff',
-        fontSize: '14px',
+        background: active ? 'rgba(58, 127, 255, 0.1)' : '#08101a',
+        border: `1px solid ${active ? '#3a7fff' : '#1a2a45'}`,
+        color: active ? '#3a7fff' : '#c8d8f0',
+        fontSize: '13px',
+        fontFamily: 'Inter, sans-serif',
         fontWeight: 500,
-        letterSpacing: '0.02em',
+        letterSpacing: '0.01em',
         userSelect: 'none',
         outline: 'none',
-        transition: 'background 0.2s, border-color 0.2s',
+        transition: 'color 0.2s, background 0.2s',
       }}
     >
       <input {...getInputProps()} />
-      <span style={{ fontSize: '18px' }}>↑</span>
-      <span>{active ? 'Drop files here' : 'Upload Bill'}</span>
+      <span style={{ fontSize: '14px' }}>↑</span>
+      <span>{active ? 'Drop files' : 'Upload Bill'}</span>
     </motion.div>
   )
 }

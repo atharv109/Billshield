@@ -77,7 +77,7 @@ export const DEMO_CASE: CaseData = {
       amount: 2840,
       dueDate: 'Mar 28',
       dateOfService: 'Mar 3, 2025',
-      position: [-2, 0.5, 0],
+      position: [-4, 0.8, 0],
       lineItems: [
         { id: 'li-1', code: '99285', description: 'ER Visit – High Complexity', amount: 1200 },
         { id: 'li-2', code: '71046', description: 'Chest X-Ray, 2 views', amount: 380 },
@@ -96,7 +96,7 @@ export const DEMO_CASE: CaseData = {
       paidAmount: 1980,
       patientOwe: 860,
       dateOfService: 'Mar 3, 2025',
-      position: [2, 0.5, 0],
+      position: [4, 0.8, -0.5],
     },
     {
       id: 'bill-2',
@@ -105,7 +105,7 @@ export const DEMO_CASE: CaseData = {
       amount: 650,
       dueDate: 'Apr 5',
       dateOfService: 'Mar 3, 2025',
-      position: [0, 2.5, -1.5],
+      position: [0.5, 3.2, -3],
       lineItems: [
         { id: 'li-r1', code: '71046', description: 'Chest X-Ray, 2 views', amount: 380, flagged: true },
         { id: 'li-r2', code: '71250', description: 'CT Chest w/o contrast', amount: 270 },
@@ -118,7 +118,7 @@ export const DEMO_CASE: CaseData = {
       amount: 1380,
       dueDate: 'Mar 31',
       dateOfService: 'Mar 3, 2025',
-      position: [0, -1.5, -2],
+      position: [-0.5, -2.2, -3],
       lineItems: [
         { id: 'li-p1', code: '99285', description: 'ER Physician – Evaluation & Management', amount: 950 },
         { id: 'li-p2', code: '93000', description: 'ECG interpretation', amount: 130 },

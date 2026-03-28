@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '../store/useAppStore'
 
+const ease = [0.4, 0, 0.2, 1] as const
+
 export function SummaryPanel() {
   const scene = useAppStore((s) => s.scene)
   const caseData = useAppStore((s) => s.caseData)
@@ -10,113 +12,121 @@ export function SummaryPanel() {
 
   if (!caseData) return null
 
-  const unresolvedIssues = caseData.issues.length
-
   return (
     <AnimatePresence>
       {visible && (
         <motion.div
           key="summary"
-          initial={{ opacity: 0, x: -30 }}
+          initial={{ opacity: 0, x: -24 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -30 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-          className="absolute top-8 left-8"
-          style={{ zIndex: 20, maxWidth: '280px' }}
+          exit={{ opacity: 0, x: -24 }}
+          transition={{ duration: 0.5, ease }}
+          style={{
+            position: 'absolute',
+            top: '72px',
+            left: '28px',
+            zIndex: 20,
+            width: '268px',
+          }}
         >
           <div
-            className="glass rounded-xl p-5"
-            style={{ borderColor: 'rgba(74, 158, 255, 0.2)' }}
+            style={{
+              background: '#08101a',
+              border: '1px solid #1a2a45',
+              borderRadius: '14px',
+              padding: '20px',
+            }}
           >
             {/* Header */}
-            <div className="flex items-center gap-2 mb-4">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
               <div
-                className="w-2 h-2 rounded-full"
-                style={{ background: '#4a9eff', boxShadow: '0 0 8px #4a9eff' }}
+                style={{
+                  width: '6px', height: '6px', borderRadius: '50%',
+                  background: '#3a7fff',
+                  boxShadow: '0 0 8px #3a7fff',
+                }}
               />
               <span
-                className="font-mono text-xs tracking-widest"
-                style={{ color: '#4a9eff' }}
+                style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '10px',
+                  color: '#3a7fff',
+                  letterSpacing: '0.14em',
+                }}
               >
                 CASE OVERVIEW
               </span>
             </div>
 
-            {/* Event type */}
-            <div className="mb-4">
-              <div className="text-sm font-medium" style={{ color: '#e0eaff' }}>
+            {/* Event + date */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#c8d8f0' }}>
                 {caseData.eventType}
               </div>
-              <div className="text-xs mt-0.5" style={{ color: '#6b8ab0' }}>
+              <div style={{ fontSize: '11px', color: '#4a6280', marginTop: '2px' }}>
                 {caseData.dateOfService}
               </div>
             </div>
 
             {/* Stats */}
-            <div className="space-y-2.5 mb-4">
-              <StatRow
-                label="Total billed"
-                value={`$${caseData.totalBilled.toLocaleString()}`}
-                valueColor="#e0eaff"
-              />
-              <StatRow
-                label="Insurer paid"
-                value={`$${caseData.insurerPaid.toLocaleString()}`}
-                valueColor="#00cc88"
-              />
-              <div
-                style={{
-                  height: '1px',
-                  background: 'rgba(74, 158, 255, 0.1)',
-                  margin: '4px 0',
-                }}
-              />
-              <StatRow
-                label="Patient owes"
-                value={`$${caseData.patientOwes.toLocaleString()}`}
-                valueColor="#ffaa00"
-                bold
-              />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+              <StatRow label="Total billed" value={`$${caseData.totalBilled.toLocaleString()}`} color="#c8d8f0" />
+              <StatRow label="Insurer paid" value={`$${caseData.insurerPaid.toLocaleString()}`} color="#8ab0e0" />
+              <div style={{ height: '1px', background: '#1a2a45' }} />
+              <StatRow label="Patient owes" value={`$${caseData.patientOwes.toLocaleString()}`} color="#ffffff" bold />
             </div>
 
-            {/* Documents */}
-            <div className="mb-3">
-              <div className="text-xs mb-2" style={{ color: '#6b8ab0' }}>
+            {/* Linked docs */}
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '10px', color: '#4a6280', marginBottom: '8px' }}>
                 {caseData.documents.length} documents linked
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                 {caseData.documents.map((doc) => (
-                  <DocBadge
+                  <span
                     key={doc.id}
-                    type={doc.type}
-                    label={doc.provider ?? doc.insurer ?? 'Doc'}
-                  />
+                    style={{
+                      fontSize: '9px',
+                      fontFamily: 'JetBrains Mono, monospace',
+                      padding: '2px 7px',
+                      borderRadius: '4px',
+                      background: '#0d1826',
+                      border: '1px solid #1a2a45',
+                      color: '#6a8ab0',
+                      letterSpacing: '0.03em',
+                    }}
+                  >
+                    {(doc.provider ?? doc.insurer ?? 'Doc').split(' ').slice(0, 2).join(' ')}
+                  </span>
                 ))}
               </div>
             </div>
 
-            {/* Issues alert */}
-            {unresolvedIssues > 0 && scene !== 'resolution' && (
+            {/* Alert */}
+            {scene !== 'resolution' && caseData.issues.length > 0 && (
               <div
-                className="mt-3 px-3 py-2 rounded-lg text-xs"
                 style={{
-                  background: 'rgba(255, 68, 68, 0.08)',
-                  border: '1px solid rgba(255, 68, 68, 0.25)',
-                  color: '#ff8888',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 51, 68, 0.06)',
+                  border: '1px solid rgba(255, 51, 68, 0.2)',
+                  fontSize: '11px',
+                  color: '#ff5566',
                 }}
               >
-                ⚠ {unresolvedIssues} item{unresolvedIssues > 1 ? 's' : ''} may need review
+                ⚠ {caseData.issues.length} item{caseData.issues.length > 1 ? 's' : ''} may need review
               </div>
             )}
 
-            {/* Resolution state */}
             {scene === 'resolution' && (
               <div
-                className="mt-3 px-3 py-2 rounded-lg text-xs"
                 style={{
-                  background: 'rgba(0, 204, 136, 0.08)',
-                  border: '1px solid rgba(0, 204, 136, 0.25)',
-                  color: '#00cc88',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(58, 127, 255, 0.06)',
+                  border: '1px solid rgba(58, 127, 255, 0.2)',
+                  fontSize: '11px',
+                  color: '#3a7fff',
                 }}
               >
                 ✓ Case under control
@@ -129,53 +139,20 @@ export function SummaryPanel() {
   )
 }
 
-function StatRow({
-  label,
-  value,
-  valueColor,
-  bold = false,
-}: {
-  label: string
-  value: string
-  valueColor: string
-  bold?: boolean
+function StatRow({ label, value, color, bold = false }: {
+  label: string; value: string; color: string; bold?: boolean
 }) {
   return (
-    <div className="flex justify-between items-center">
-      <span className="text-xs" style={{ color: '#6b8ab0' }}>
-        {label}
-      </span>
-      <span
-        className="text-sm font-mono"
-        style={{ color: valueColor, fontWeight: bold ? 700 : 500 }}
-      >
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <span style={{ fontSize: '11px', color: '#4a6280' }}>{label}</span>
+      <span style={{
+        fontSize: '13px',
+        fontFamily: 'JetBrains Mono, monospace',
+        color,
+        fontWeight: bold ? 700 : 500,
+      }}>
         {value}
       </span>
     </div>
-  )
-}
-
-function DocBadge({ type, label }: { type: string; label: string }) {
-  const colors: Record<string, string> = {
-    bill: '#4a9eff',
-    eob: '#00cc88',
-    radiology: '#ffaa00',
-    estimate: '#cc66ff',
-  }
-  const color = colors[type] ?? '#4a9eff'
-  const shortLabel = label.split(' ').slice(0, 2).join(' ')
-
-  return (
-    <span
-      className="px-2 py-0.5 rounded text-xs font-mono"
-      style={{
-        background: `${color}15`,
-        border: `1px solid ${color}40`,
-        color,
-        fontSize: '9px',
-      }}
-    >
-      {shortLabel}
-    </span>
   )
 }
