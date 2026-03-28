@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import type { CaseData, Issue, Action } from '../data/mockCase'
 import { DEMO_CASE } from '../data/mockCase'
 
+const API_BASE = 'http://localhost:3001/api'
+
 export type AppScene =
   | 'landing'
   | 'intake'
@@ -27,9 +29,12 @@ interface AppStore {
   selectedAction: Action | null
   completedActions: string[]
   parsingProgress: number
+  analysisError: string | null
 
   setScene: (s: AppScene) => void
   loadDemoCase: () => void
+  uploadAndAnalyze: (files: File[]) => void
+  /** @deprecated kept for UploadZone — calls uploadAndAnalyze internally */
   simulateUpload: (files: File[]) => void
   selectIssue: (issue: Issue | null) => void
   selectAction: (action: Action | null) => void
@@ -45,28 +50,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
   selectedAction: null,
   completedActions: [],
   parsingProgress: 0,
+  analysisError: null,
 
   setScene: (scene) => set({ scene }),
 
   loadDemoCase: () => {
-    set({ scene: 'intake', uploadedFiles: [], parsingProgress: 0 })
+    set({ scene: 'intake', uploadedFiles: [], parsingProgress: 0, analysisError: null })
 
-    // Simulate file snap-in
     setTimeout(() => {
       set({
         uploadedFiles: [
           { id: 'f1', name: 'hospital_bill_march.pdf', type: 'application/pdf', size: 284000 },
           { id: 'f2', name: 'eob_bluecross_march.pdf', type: 'application/pdf', size: 156000 },
-          { id: 'f3', name: 'radiology_bill.pdf', type: 'application/pdf', size: 98000 },
-          { id: 'f4', name: 'er_physicians_invoice.pdf', type: 'application/pdf', size: 112000 },
         ],
       })
     }, 800)
 
-    // Start parsing
     setTimeout(() => {
       set({ scene: 'parsing', parsingProgress: 0 })
-      // Animate progress
       let p = 0
       const interval = setInterval(() => {
         p += Math.random() * 18 + 5
@@ -81,37 +82,87 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }, 200)
     }, 2400)
 
-    // Move to analysis
     setTimeout(() => {
       set({ scene: 'analysis' })
     }, 8000)
   },
 
-  simulateUpload: (files: File[]) => {
+  uploadAndAnalyze: (files: File[]) => {
     const uploaded: UploadedFile[] = files.map((f, i) => ({
       id: `upload-${i}`,
       name: f.name,
       type: f.type,
       size: f.size,
     }))
-    set({ uploadedFiles: uploaded, scene: 'intake' })
+    set({ uploadedFiles: uploaded, scene: 'intake', parsingProgress: 0, analysisError: null })
 
+    // Animate progress UI while waiting for API
+    const progressInterval = { ref: null as ReturnType<typeof setInterval> | null }
     setTimeout(() => {
       set({ scene: 'parsing', parsingProgress: 0 })
       let p = 0
-      const interval = setInterval(() => {
-        p += Math.random() * 15 + 5
-        if (p >= 100) {
-          p = 100
-          clearInterval(interval)
-          setTimeout(() => set({ scene: 'reconstruction', caseData: DEMO_CASE }), 600)
+      progressInterval.ref = setInterval(() => {
+        p += Math.random() * 6 + 2
+        if (p >= 90) {
+          p = 90
+          if (progressInterval.ref) clearInterval(progressInterval.ref)
         }
-        set({ parsingProgress: Math.min(p, 100) })
-      }, 250)
-    }, 2000)
+        set({ parsingProgress: Math.min(p, 90) })
+      }, 300)
+    }, 1500)
 
-    setTimeout(() => set({ scene: 'analysis' }), 7500)
+    // Upload files and run pipeline
+    ;(async () => {
+      try {
+        // Step 1: upload files
+        const formData = new FormData()
+        for (const f of files) formData.append('files', f)
+
+        const uploadRes = await fetch(`${API_BASE}/upload`, {
+          method: 'POST',
+          body: formData,
+        })
+        if (!uploadRes.ok) throw new Error('Upload failed')
+        const uploadData = await uploadRes.json() as { files: Array<{ fileId: string }> }
+        const fileIds = uploadData.files.map((f) => f.fileId)
+
+        // Step 2: analyze
+        const analyzeRes = await fetch(`${API_BASE}/upload/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileIds }),
+        })
+        if (!analyzeRes.ok) {
+          const err = await analyzeRes.json().catch(() => ({ error: 'Analysis failed' }))
+          throw new Error(err.error ?? 'Analysis failed')
+        }
+
+        const caseData = await analyzeRes.json() as CaseData
+
+        // Finish progress
+        if (progressInterval.ref) clearInterval(progressInterval.ref)
+        set({ parsingProgress: 100 })
+
+        setTimeout(() => {
+          set({ scene: 'reconstruction', caseData })
+        }, 600)
+
+        setTimeout(() => {
+          set({ scene: 'analysis' })
+        }, 4000)
+      } catch (err) {
+        if (progressInterval.ref) clearInterval(progressInterval.ref)
+        console.error('Upload/analyze error:', err)
+        set({
+          analysisError: err instanceof Error ? err.message : 'Analysis failed',
+          scene: 'landing',
+          parsingProgress: 0,
+        })
+      }
+    })()
   },
+
+  simulateUpload: (files: File[]) => get().uploadAndAnalyze(files),
 
   selectIssue: (issue) => {
     if (issue) {
@@ -149,6 +200,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       selectedAction: null,
       completedActions: [],
       parsingProgress: 0,
+      analysisError: null,
     })
   },
 }))

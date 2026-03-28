@@ -60,6 +60,18 @@ export interface CaseData {
   issues: Issue[]
   actions: Action[]
   timeline: TimelineEvent[]
+  // Optional: full agent output attached by the backend
+  agentOutput?: {
+    final_output?: {
+      summary?: { plain_english_summary?: string; uncertainties?: string[] }
+      what_this_may_mean?: string
+    }
+    internal_scores?: {
+      scores?: { overall_case_score?: number }
+      needs_human_review?: boolean
+    }
+    needs_human_review?: boolean
+  }
 }
 
 export const DEMO_CASE: CaseData = {

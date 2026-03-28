@@ -1,13 +1,14 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { upload } from '../middleware/upload'
-import { analyzeBill } from '../services/claude'
-import { store } from '../data/store'
+import { runPipeline } from '../pipeline/pipeline'
+import { mapFinalOutputToFrontendCase } from '../services/outputMapper'
+import type { IntakeFile } from '../types/agentTypes'
 
 const router = Router()
 
-// In-memory file buffer store (just metadata + content for analysis)
-const uploadedFiles = new Map<string, { name: string; mimetype: string; size: number; content: string }>()
+// In-memory store of uploaded file buffers
+const uploadedFiles = new Map<string, IntakeFile>()
 
 // POST /api/upload — upload one or more files
 router.post('/', upload.array('files', 10), (req, res) => {
@@ -19,12 +20,12 @@ router.post('/', upload.array('files', 10), (req, res) => {
 
   const results = files.map((file) => {
     const fileId = uuidv4()
-    // Store file content as base64 for potential Claude analysis
     uploadedFiles.set(fileId, {
-      name: file.originalname,
+      file_id: fileId,
+      filename: file.originalname,
       mimetype: file.mimetype,
       size: file.size,
-      content: file.buffer.toString('base64'),
+      buffer: file.buffer,
     })
     return { fileId, name: file.originalname, size: file.size, type: file.mimetype }
   })
@@ -32,28 +33,41 @@ router.post('/', upload.array('files', 10), (req, res) => {
   res.json({ files: results })
 })
 
-// POST /api/analyze — analyze uploaded files with Claude
+// POST /api/upload/analyze — run multi-agent pipeline on uploaded files
 router.post('/analyze', async (req, res) => {
   const { fileIds } = req.body as { fileIds?: string[] }
 
-  // Build descriptions for Claude from file metadata
-  const descriptions: string[] = []
-  if (fileIds && Array.isArray(fileIds)) {
-    for (const id of fileIds) {
-      const f = uploadedFiles.get(id)
-      if (f) {
-        descriptions.push(`File: ${f.name} (${f.mimetype}, ${Math.round(f.size / 1024)}KB)`)
-      }
-    }
+  if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+    res.status(400).json({ error: 'No fileIds provided' })
+    return
+  }
+
+  const intakeFiles: IntakeFile[] = []
+  for (const id of fileIds) {
+    const f = uploadedFiles.get(id)
+    if (f) intakeFiles.push(f)
+  }
+
+  if (intakeFiles.length === 0) {
+    res.status(400).json({ error: 'No uploaded files found for the given fileIds' })
+    return
   }
 
   try {
-    const caseData = await analyzeBill(descriptions)
-    store.create(caseData)
+    const result = await runPipeline(intakeFiles)
+
+    if ('error' in result && result.error) {
+      res.status(422).json({ error: result.message })
+      return
+    }
+
+    const caseData = mapFinalOutputToFrontendCase(result as Exclude<typeof result, { error: true }>)
     res.json(caseData)
   } catch (err) {
+    console.error('Pipeline error:', err)
     res.status(500).json({ error: 'Analysis failed', detail: String(err) })
   }
 })
 
 export default router
+

@@ -51,6 +51,8 @@ export interface CaseData {
   issues: BillIssue[]
   actions: CaseAction[]
   timeline: TimelineEvent[]
+  // Optional: full multi-agent output for detailed UI
+  agentOutput?: unknown
 }
 
 export const DEMO_CASES: CaseData[] = [

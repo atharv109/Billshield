@@ -12,6 +12,11 @@ export function SummaryPanel() {
 
   if (!caseData) return null
 
+  const plainSummary = caseData.agentOutput?.final_output?.summary?.plain_english_summary
+  const whatItMeans = caseData.agentOutput?.final_output?.what_this_may_mean
+  const overallScore = caseData.agentOutput?.internal_scores?.scores?.overall_case_score
+  const needsReview = caseData.agentOutput?.needs_human_review
+
   return (
     <AnimatePresence>
       {visible && (
@@ -56,6 +61,22 @@ export function SummaryPanel() {
               >
                 CASE OVERVIEW
               </span>
+              {overallScore != null && (
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: '9px',
+                    fontFamily: 'JetBrains Mono, monospace',
+                    color: overallScore >= 70 ? '#3a7fff' : overallScore >= 50 ? '#ffaa33' : '#ff5566',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    background: 'rgba(58,127,255,0.08)',
+                    border: '1px solid rgba(58,127,255,0.2)',
+                  }}
+                >
+                  {overallScore}/100
+                </span>
+              )}
             </div>
 
             {/* Event + date */}
@@ -75,6 +96,31 @@ export function SummaryPanel() {
               <div style={{ height: '1px', background: '#1a2a45' }} />
               <StatRow label="Patient owes" value={`$${caseData.patientOwes.toLocaleString()}`} color="#ffffff" bold />
             </div>
+
+            {/* Plain-English Summary */}
+            {plainSummary && (
+              <div
+                style={{
+                  marginBottom: '14px',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(58, 127, 255, 0.04)',
+                  border: '1px solid #1a2a45',
+                  fontSize: '11px',
+                  color: '#6a8ab0',
+                  lineHeight: 1.6,
+                }}
+              >
+                {plainSummary.length > 200 ? plainSummary.slice(0, 200) + '…' : plainSummary}
+              </div>
+            )}
+
+            {/* What this may mean */}
+            {whatItMeans && !plainSummary && (
+              <div style={{ marginBottom: '14px', fontSize: '10px', color: '#4a6280', lineHeight: 1.55 }}>
+                {whatItMeans.length > 160 ? whatItMeans.slice(0, 160) + '…' : whatItMeans}
+              </div>
+            )}
 
             {/* Linked docs */}
             <div style={{ marginBottom: '14px' }}>
@@ -101,6 +147,23 @@ export function SummaryPanel() {
                 ))}
               </div>
             </div>
+
+            {/* Human review banner */}
+            {needsReview && (
+              <div
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 170, 51, 0.06)',
+                  border: '1px solid rgba(255, 170, 51, 0.25)',
+                  fontSize: '10px',
+                  color: '#ffaa33',
+                  marginBottom: '8px',
+                }}
+              >
+                ⚠ Manual review recommended — confidence is limited
+              </div>
+            )}
 
             {/* Alert */}
             {scene !== 'resolution' && caseData.issues.length > 0 && (

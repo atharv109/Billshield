@@ -7,6 +7,8 @@ const ease = [0.4, 0, 0.2, 1] as const
 export function LandingOverlay() {
   const scene = useAppStore((s) => s.scene)
   const loadDemoCase = useAppStore((s) => s.loadDemoCase)
+  const analysisError = useAppStore((s) => s.analysisError)
+  const resetCase = useAppStore((s) => s.resetCase)
 
   return (
     <AnimatePresence>
@@ -141,7 +143,46 @@ export function LandingOverlay() {
             </button>
           </motion.div>
 
-          {/* Scroll hint */}
+          {/* Error banner */}
+          {analysisError && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                marginTop: '16px',
+                padding: '10px 18px',
+                borderRadius: '9px',
+                background: 'rgba(255, 51, 68, 0.08)',
+                border: '1px solid rgba(255, 51, 68, 0.3)',
+                color: '#ff5566',
+                fontSize: '12px',
+                fontFamily: 'Inter, sans-serif',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                pointerEvents: 'auto',
+                maxWidth: '420px',
+                textAlign: 'center',
+              }}
+            >
+              <span>⚠ {analysisError}</span>
+              <button
+                onClick={resetCase}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid rgba(255,51,68,0.4)',
+                  color: '#ff5566',
+                  borderRadius: '5px',
+                  padding: '2px 8px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Dismiss
+              </button>
+            </motion.div>
+          )}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
