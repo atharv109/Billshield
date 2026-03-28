@@ -1,6 +1,6 @@
 import type { OcrOutput, DocTypeOutput } from '../types/agentTypes'
 import { classifyDocType } from './deterministicRules'
-import { callClaude } from './claudeHelper'
+import { routedCall, hasAnyLLMProvider } from '../routing/router'
 
 const SYSTEM = `You are a document classifier. Given extracted text from a medical document, determine if it is a "bill" (patient-facing invoice from a provider) or an "eob" (Explanation of Benefits from an insurance company). Respond with JSON only:
 {
@@ -14,7 +14,7 @@ Rules:
 - markers must be short exact phrases found in the text.`
 
 export async function docTypeAgent(ocr: OcrOutput): Promise<DocTypeOutput> {
-  // Deterministic pass first
+  // ── Deterministic pass first (no LLM needed if confidence is high) ──────
   const det = classifyDocType(ocr.raw_text)
 
   if (det.confidence >= 0.75) {
@@ -26,27 +26,32 @@ export async function docTypeAgent(ocr: OcrOutput): Promise<DocTypeOutput> {
     }
   }
 
-  // Low confidence: ask Claude
-  if (!process.env.ANTHROPIC_API_KEY) {
+  // ── Low confidence: route to strong paid model via routing layer ─────────
+  if (!hasAnyLLMProvider('docTypeAgent')) {
     return { doc_id: ocr.doc_id, ...det }
   }
 
   try {
     const snippet = ocr.raw_text.slice(0, 2000)
-    const result = await callClaude<{ doc_type: string; confidence: number; markers: string[] }>(
-      SYSTEM,
-      `Classify this document:\n\n${snippet}`,
-      256,
-    )
+    const { result, meta } = await routedCall<{
+      doc_type: string
+      confidence: number
+      markers: string[]
+    }>('docTypeAgent', SYSTEM, `Classify this document:\n\n${snippet}`, 256)
+
     return {
       doc_id: ocr.doc_id,
       doc_type: (['bill', 'eob', 'unclear'].includes(result.doc_type)
         ? result.doc_type
         : 'unclear') as DocTypeOutput['doc_type'],
-      confidence: typeof result.confidence === 'number' ? result.confidence : 0.5,
+      // Apply confidence penalty: reduces score when a fallback provider was used
+      confidence:
+        (typeof result.confidence === 'number' ? result.confidence : 0.5) *
+        meta.confidencePenalty,
       markers: Array.isArray(result.markers) ? result.markers : det.markers,
     }
   } catch {
+    // All providers failed — return deterministic result
     return { doc_id: ocr.doc_id, ...det }
   }
 }

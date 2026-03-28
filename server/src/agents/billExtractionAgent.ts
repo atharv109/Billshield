@@ -1,5 +1,5 @@
 import type { OcrOutput, BillExtractionOutput } from '../types/agentTypes'
-import { callClaude } from './claudeHelper'
+import { routedCall, hasAnyLLMProvider } from '../routing/router'
 
 const SYSTEM = `You are a bill data extractor. Extract structured fields from a medical bill. Respond with JSON only. Use null for any field not found in the text. Do not invent values.
 
@@ -30,12 +30,15 @@ Rules:
 export async function billExtractionAgent(
   ocr: OcrOutput,
 ): Promise<BillExtractionOutput> {
+  // ── Deterministic fallback: used when no LLM is available ────────────────
+  // Confidence 0.2 — regex amounts are a rough proxy, not reliable extraction.
   const fallback: BillExtractionOutput = {
     doc_id: ocr.doc_id,
     provider_name: null,
     statement_date: null,
     service_dates: ocr.dates_found.slice(0, 5),
-    total_billed: ocr.amounts_found.length > 0 ? Math.max(...ocr.amounts_found) : null,
+    total_billed:
+      ocr.amounts_found.length > 0 ? Math.max(...ocr.amounts_found) : null,
     balance_due: null,
     patient_name: null,
     account_number: null,
@@ -44,12 +47,14 @@ export async function billExtractionAgent(
     evidence: { total_billed: [], balance_due: [] },
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) return fallback
+  // ── Route to strong paid model (primary: Anthropic, fallback: OpenAI) ────
+  if (!hasAnyLLMProvider('billExtractionAgent')) return fallback
 
   try {
-    // Send first 3000 chars of text to keep tokens tight
+    // Send first 3000 chars — covers key fields while keeping token cost tight
     const snippet = ocr.raw_text.slice(0, 3000)
-    const result = await callClaude<Omit<BillExtractionOutput, 'doc_id'>>(
+    const { result, meta } = await routedCall<Omit<BillExtractionOutput, 'doc_id'>>(
+      'billExtractionAgent',
       SYSTEM,
       `Extract fields from this medical bill:\n\n${snippet}`,
       1024,
@@ -59,19 +64,36 @@ export async function billExtractionAgent(
       doc_id: ocr.doc_id,
       provider_name: result.provider_name ?? null,
       statement_date: result.statement_date ?? null,
-      service_dates: Array.isArray(result.service_dates) ? result.service_dates : ocr.dates_found.slice(0, 5),
-      total_billed: typeof result.total_billed === 'number' ? result.total_billed : fallback.total_billed,
-      balance_due: typeof result.balance_due === 'number' ? result.balance_due : null,
+      service_dates: Array.isArray(result.service_dates)
+        ? result.service_dates
+        : ocr.dates_found.slice(0, 5),
+      total_billed:
+        typeof result.total_billed === 'number'
+          ? result.total_billed
+          : fallback.total_billed,
+      balance_due:
+        typeof result.balance_due === 'number' ? result.balance_due : null,
       patient_name: result.patient_name ?? null,
       account_number: result.account_number ?? null,
-      line_items: Array.isArray(result.line_items) ? result.line_items.slice(0, 20) : [],
-      confidence: typeof result.confidence === 'number' ? result.confidence : 0.5,
+      line_items: Array.isArray(result.line_items)
+        ? result.line_items.slice(0, 20)
+        : [],
+      // Apply confidence penalty: reduces score when fallback provider was used,
+      // which propagates to scoringAgent and may trigger needs_human_review.
+      confidence:
+        (typeof result.confidence === 'number' ? result.confidence : 0.5) *
+        meta.confidencePenalty,
       evidence: {
-        total_billed: Array.isArray(result.evidence?.total_billed) ? result.evidence.total_billed : [],
-        balance_due: Array.isArray(result.evidence?.balance_due) ? result.evidence.balance_due : [],
+        total_billed: Array.isArray(result.evidence?.total_billed)
+          ? result.evidence.total_billed
+          : [],
+        balance_due: Array.isArray(result.evidence?.balance_due)
+          ? result.evidence.balance_due
+          : [],
       },
     }
   } catch {
+    // All providers failed — return deterministic-only output
     return fallback
   }
 }

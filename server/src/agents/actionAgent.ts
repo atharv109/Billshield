@@ -1,5 +1,5 @@
 import type { Flag, ActionOutput } from '../types/agentTypes'
-import { callClaude } from './claudeHelper'
+import { routedCall, hasAnyLLMProvider } from '../routing/router'
 
 const SYSTEM = `You are a patient advocate assistant. Given one medical billing review flag, generate exactly one clear, calm, professional next step the patient can take — either a call script or an email draft.
 
@@ -20,7 +20,13 @@ Output schema (JSON only):
   "confidence": number
 }`
 
-function generateFallbackAction(topFlag: Flag): ActionOutput {
+/**
+ * Safe template fallback — used when all LLM providers fail.
+ * Produces exactly one usable action based on the top flag's contact_target.
+ * Confidence 0.5 reflects that the action is structurally correct but not
+ * tailored to the specific flag wording.
+ */
+function generateTemplateAction(topFlag: Flag): ActionOutput {
   if (topFlag.contact_target === 'insurer') {
     return {
       action_type: 'call_script',
@@ -39,7 +45,7 @@ Key questions:
 3. "What is the deadline to request a review if needed?"
 
 Keep a record of: the representative's name, date, and reference number for this call.`,
-      confidence: 0.6,
+      confidence: 0.5,
     }
   }
 
@@ -64,7 +70,7 @@ Thank you for your assistance.
 Sincerely,
 [YOUR NAME]
 [YOUR PHONE NUMBER]`,
-    confidence: 0.6,
+    confidence: 0.5,
   }
 }
 
@@ -73,9 +79,9 @@ export async function actionAgent(
   providerName: string | null,
   insurerName: string | null,
 ): Promise<ActionOutput> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return generateFallbackAction(topFlag)
-  }
+  // ── No LLM configured — return template ──────────────────────────────────
+  if (!hasAnyLLMProvider('actionAgent'))
+    return generateTemplateAction(topFlag)
 
   try {
     const input = {
@@ -91,29 +97,44 @@ export async function actionAgent(
       insurer_name: insurerName,
     }
 
-    const result = await callClaude<ActionOutput>(
+    // ── Route: cheap/free primary (MiroFish) → Gemini → paid fallback (Anthropic)
+    const { result, meta } = await routedCall<ActionOutput>(
+      'actionAgent',
       SYSTEM,
       `Generate one next step action for this billing review flag:\n\n${JSON.stringify(input, null, 2)}`,
       512,
     )
 
+    const template = generateTemplateAction(topFlag)
+
     return {
-      action_type: (['call_script', 'email_draft'].includes(result.action_type)
-        ? result.action_type
-        : topFlag.contact_target === 'insurer'
-          ? 'call_script'
-          : 'email_draft') as ActionOutput['action_type'],
-      contact_target: (['provider', 'insurer'].includes(result.contact_target)
-        ? result.contact_target
-        : topFlag.contact_target) as ActionOutput['contact_target'],
+      action_type: (
+        ['call_script', 'email_draft'].includes(result.action_type)
+          ? result.action_type
+          : template.action_type
+      ) as ActionOutput['action_type'],
+      contact_target: (
+        ['provider', 'insurer'].includes(result.contact_target)
+          ? result.contact_target
+          : topFlag.contact_target
+      ) as ActionOutput['contact_target'],
       reason_for_action:
         typeof result.reason_for_action === 'string'
           ? result.reason_for_action
           : topFlag.title,
-      content: typeof result.content === 'string' ? result.content : generateFallbackAction(topFlag).content,
-      confidence: typeof result.confidence === 'number' ? result.confidence : 0.7,
+      content:
+        typeof result.content === 'string' && result.content.length > 50
+          ? result.content
+          : template.content,
+      // Apply routing confidence penalty.
+      // actionAgent primary (MiroFish) carries a 0.9 penalty in config to reflect
+      // that cheap model wording may need review.
+      confidence:
+        (typeof result.confidence === 'number' ? result.confidence : 0.7) *
+        meta.confidencePenalty,
     }
   } catch {
-    return generateFallbackAction(topFlag)
+    // All providers failed — return safe template action
+    return generateTemplateAction(topFlag)
   }
 }

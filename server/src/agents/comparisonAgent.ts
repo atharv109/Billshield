@@ -7,7 +7,7 @@ import type {
   Severity,
 } from '../types/agentTypes'
 import { amountMismatch, balanceInconsistent, detectDuplicates } from './deterministicRules'
-import { callClaude } from './claudeHelper'
+import { routedCall, hasAnyLLMProvider } from '../routing/router'
 
 const SYSTEM = `You are a medical billing comparison agent. Given structured fields extracted from a bill and an EOB, generate 3–5 cautious review flags where something may warrant the patient's attention.
 
@@ -229,7 +229,8 @@ export async function comparisonAgent(
 ): Promise<ComparisonOutput> {
   const deterministicFlags = buildDeterministicFlags(bill, eob)
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  // ── Route to strong paid model (primary: Anthropic, fallback: OpenAI) ────
+  if (!hasAnyLLMProvider('comparisonAgent')) {
     return { flags: ensureMinimumFlags(deterministicFlags, bill, eob) }
   }
 
@@ -258,7 +259,8 @@ export async function comparisonAgent(
       already_detected: deterministicFlags.map((f) => f.flag_type),
     }
 
-    const result = await callClaude<ComparisonOutput>(
+    const { result, meta } = await routedCall<ComparisonOutput>(
+      'comparisonAgent',
       SYSTEM,
       `Compare these extracted bill and EOB fields. Do NOT re-flag already_detected issues unless you have additional evidence. Generate 1–3 additional cautious flags if warranted:\n\n${JSON.stringify(input, null, 2)}`,
       1024,
@@ -273,8 +275,14 @@ export async function comparisonAgent(
             explanation: f.explanation,
             why_it_matters: f.why_it_matters ?? '',
             contact_target: (f.contact_target as 'provider' | 'insurer') ?? 'provider',
-            severity: (['low', 'medium', 'high'].includes(f.severity) ? f.severity : 'low') as Severity,
-            confidence: typeof f.confidence === 'number' ? f.confidence : 0.5,
+            severity: (['low', 'medium', 'high'].includes(f.severity)
+              ? f.severity
+              : 'low') as Severity,
+            // Apply routing penalty to each LLM flag's confidence.
+            // Deterministic flags are not penalised — they are always trusted.
+            confidence:
+              (typeof f.confidence === 'number' ? f.confidence : 0.5) *
+              meta.confidencePenalty,
             evidence: Array.isArray(f.evidence) ? f.evidence : [],
           }))
       : []
