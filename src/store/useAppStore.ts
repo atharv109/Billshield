@@ -2,6 +2,13 @@ import { create } from 'zustand'
 import type { CaseData, Issue, Action } from '../data/mockCase'
 import { DEMO_CASE } from '../data/mockCase'
 
+// Module-level timer registry — cleared when resetCase() is called
+const activeTimers: ReturnType<typeof setTimeout>[] = []
+function track(id: ReturnType<typeof setTimeout>) { activeTimers.push(id) }
+function clearAllTimers() {
+  while (activeTimers.length) clearTimeout(activeTimers.pop()!)
+}
+
 export type AppScene =
   | 'landing'
   | 'intake'
@@ -49,10 +56,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setScene: (scene) => set({ scene }),
 
   loadDemoCase: () => {
+    clearAllTimers()
     set({ scene: 'intake', uploadedFiles: [], parsingProgress: 0 })
 
-    // Simulate file snap-in
-    setTimeout(() => {
+    track(setTimeout(() => {
       set({
         uploadedFiles: [
           { id: 'f1', name: 'hospital_bill_march.pdf', type: 'application/pdf', size: 284000 },
@@ -61,33 +68,31 @@ export const useAppStore = create<AppStore>((set, get) => ({
           { id: 'f4', name: 'er_physicians_invoice.pdf', type: 'application/pdf', size: 112000 },
         ],
       })
-    }, 800)
+    }, 800))
 
-    // Start parsing
-    setTimeout(() => {
+    track(setTimeout(() => {
       set({ scene: 'parsing', parsingProgress: 0 })
-      // Animate progress
       let p = 0
       const interval = setInterval(() => {
         p += Math.random() * 18 + 5
         if (p >= 100) {
           p = 100
           clearInterval(interval)
-          setTimeout(() => {
+          track(setTimeout(() => {
             set({ scene: 'reconstruction', caseData: DEMO_CASE })
-          }, 600)
+          }, 600))
         }
         set({ parsingProgress: Math.min(p, 100) })
       }, 200)
-    }, 2400)
+    }, 2400))
 
-    // Move to analysis
-    setTimeout(() => {
+    track(setTimeout(() => {
       set({ scene: 'analysis' })
-    }, 8000)
+    }, 8000))
   },
 
   simulateUpload: (files: File[]) => {
+    clearAllTimers()
     const uploaded: UploadedFile[] = files.map((f, i) => ({
       id: `upload-${i}`,
       name: f.name,
@@ -96,7 +101,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }))
     set({ uploadedFiles: uploaded, scene: 'intake' })
 
-    setTimeout(() => {
+    track(setTimeout(() => {
       set({ scene: 'parsing', parsingProgress: 0 })
       let p = 0
       const interval = setInterval(() => {
@@ -104,13 +109,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
         if (p >= 100) {
           p = 100
           clearInterval(interval)
-          setTimeout(() => set({ scene: 'reconstruction', caseData: DEMO_CASE }), 600)
+          track(setTimeout(() => set({ scene: 'reconstruction', caseData: DEMO_CASE }), 600))
         }
         set({ parsingProgress: Math.min(p, 100) })
       }, 250)
-    }, 2000)
+    }, 2000))
 
-    setTimeout(() => set({ scene: 'analysis' }), 7500)
+    track(setTimeout(() => set({ scene: 'analysis' }), 7500))
   },
 
   selectIssue: (issue) => {
@@ -141,6 +146,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   resetCase: () => {
+    clearAllTimers()
     set({
       scene: 'landing',
       uploadedFiles: [],

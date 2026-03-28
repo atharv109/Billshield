@@ -1,4 +1,6 @@
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import type { TooltipProps } from 'recharts'
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const DATA = [
   { month: 'Oct', billed: 6200, savings: 800 },
@@ -15,7 +17,7 @@ const TICK_STYLE = {
   fill: '#2a4a6a',
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label }: TooltipProps<ValueType, NameType>) {
   if (!active || !payload?.length) return null
   return (
     <div style={{
@@ -29,9 +31,9 @@ function CustomTooltip({ active, payload, label }: any) {
       <div style={{ color: '#4a6280', marginBottom: '6px', fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', letterSpacing: '0.1em' }}>
         {label}
       </div>
-      {payload.map((entry: any) => (
-        <div key={entry.name} style={{ color: entry.color, marginBottom: '2px' }}>
-          {entry.name === 'billed' ? 'Billed' : 'Savings'}: ${entry.value.toLocaleString()}
+      {payload.map((entry) => (
+        <div key={entry.name} style={{ color: entry.color as string, marginBottom: '2px' }}>
+          {entry.name === 'billed' ? 'Billed' : 'Savings'}: ${Number(entry.value).toLocaleString()}
         </div>
       ))}
     </div>
