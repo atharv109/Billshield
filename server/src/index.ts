@@ -11,6 +11,15 @@ const PORT = process.env.PORT ?? 3001
 app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }))
 app.use(express.json())
 
+// Request logging
+app.use((req, res, next) => {
+  const start = Date.now()
+  res.on('finish', () => {
+    console.log(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`)
+  })
+  next()
+})
+
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() })
