@@ -19,12 +19,16 @@ export const store = {
     return c
   },
 
+  /**
+   * Shallow-merge `patch` into the case identified by `id` (URL id wins; body cannot change id).
+   *
+   * **Immutable:** `id` and `createdAt` in `patch` are ignored (rejected at HTTP layer with 400).
+   * **Arrays:** `issues`, `actions`, `documents`, and `timeline` are **replaced entirely** when
+   * present in `patch` — they are not deep-merged. Omit a key to leave that array unchanged.
+   */
   update(id: string, patch: Partial<StoredCase>): StoredCase | undefined {
     const existing = cases.get(id)
     if (!existing) return undefined
-    // id and createdAt are immutable — strip from patch before merging.
-    // Note: array fields (issues, actions, documents) are fully replaced by the
-    // patch, not merged. This is intentional — callers must send the full array.
     const { id: _id, createdAt: _createdAt, ...safePatch } = patch
     void _id
     void _createdAt

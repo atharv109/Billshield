@@ -41,9 +41,22 @@ router.post('/', (req, res) => {
   res.status(201).json(newCase)
 })
 
-// PATCH /api/cases/:id
+// PATCH /api/cases/:id — shallow merge; array fields replace wholesale when sent (see store.update)
 router.patch('/:id', (req, res) => {
-  const updated = store.update(req.params.id, req.body as Partial<StoredCase>)
+  const body = req.body as Record<string, unknown>
+  if (
+    Object.prototype.hasOwnProperty.call(body, 'id') ||
+    Object.prototype.hasOwnProperty.call(body, 'createdAt')
+  ) {
+    res.status(400).json({
+      error: 'Immutable fields cannot be patched',
+      detail:
+        'Remove id and createdAt from the body. The case id is only the URL :id. createdAt is set at creation.',
+    })
+    return
+  }
+
+  const updated = store.update(req.params.id, body as Partial<StoredCase>)
   if (!updated) {
     res.status(404).json({ error: 'Case not found' })
     return

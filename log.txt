@@ -191,10 +191,10 @@ PENDING FIXES (in priority order):
   [x] FIX-1: Log PDF parse failures in ocrAgent.ts
   [x] FIX-2: Clear uploadedFiles Map after pipeline completes (upload.ts)
   [x] FIX-3: Write pipeline result to store.create() (upload.ts)
-  [ ] FIX-4: Add global error handler (index.ts)
-  [ ] FIX-5: Make CORS_ORIGIN env-configurable (index.ts)
-  [ ] FIX-6: Remove openai from package.json
-  [ ] FIX-7: Remove MOCK_STATS from mockData.ts
+  [x] FIX-4: Add global error handler (index.ts) — see Change ID 8 (Phase 3)
+  [x] FIX-5: Make CORS_ORIGIN env-configurable (index.ts) — see Change ID 7 (Phase 2)
+  [x] FIX-6: Remove openai from package.json — see Change ID 12 (Phase 4)
+  [x] FIX-7: Remove MOCK_STATS from mockData.ts — see Change ID 12 (Phase 4)
   [x] ALIGN: Reconcile CaseData schema split with Person C
 
 ==================== CHANGE LOG ENTRY ====================
@@ -340,6 +340,176 @@ Files Affected:
 Result: 168 tests, 8 suites, 0 failures. npm test is now the regression gate.
 Risk: Low — tests only. _reset() is additive to store. Multer fix converts an
       unhandled error (500) to a proper 400 — no breaking change to happy path.
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 6  (Phase 2 — FIX-5)
+Title: Complete /api/stats aggregates for unified StoredCase flat fields
+Problem: After schema unification, stats summed only totalBilled. StoredCase also
+         exposes insurerPaid and patientOwes at the top level; dashboards that
+         consume /api/stats could not show portfolio-level patient liability or
+         insurer payments without re-aggregating from /api/cases.
+Fix: Extended GET /api/stats to sum c.insurerPaid → totalInsurerPaid and
+     c.patientOwes → totalPatientOwes alongside existing totalBilled, issue
+     counts, and status tallies. All monetary fields now mirror the flat
+     StoredCase contract (no nested summary.*).
+Files Affected:
+  - server/src/routes/stats.ts
+Impact: Response JSON adds totalInsurerPaid and totalPatientOwes. Additive only;
+        existing keys unchanged. No frontend calls to /api/stats in repo yet.
+Risk: Low — additive API surface. Any external client must ignore unknown keys
+      or can adopt the new aggregates.
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 7  (Phase 2 — FIX-6)
+Title: Configurable CORS via CORS_ORIGIN environment variable
+Problem: Allowed origins were hardcoded to localhost:5173 and 127.0.0.1:5173,
+         blocking deployed frontends or alternate dev ports without code edits.
+Fix: Added parseCorsOrigins() in server/src/index.ts. Reads process.env.CORS_ORIGIN
+     as a comma-separated list (trimmed, empty tokens dropped). When unset or
+     blank, behaviour matches the previous default (both dev URLs). Wired
+     cors({ origin: parseCorsOrigins() }). Documented CORS_ORIGIN in
+     server/.env.example with an example production line.
+Files Affected:
+  - server/src/index.ts
+  - server/.env.example
+Impact: Operators set CORS_ORIGIN in server/.env for staging/production. Local
+        dev unchanged if variable is omitted.
+Risk: Low — parsing is straightforward; misconfiguration yields browser CORS
+      errors only (no server crash).
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 8  (Phase 3 — FIX-7)
+Title: Express global error handler — JSON errors instead of HTML
+Problem: Unhandled errors from route/middleware could fall through to Express’s
+         default HTML handler. Operators and API clients expect JSON.
+Fix: Registered a 4-argument ErrorRequestHandler after all routes. Logs method
+     and path, respects err.status / err.statusCode when present, otherwise 500.
+     Skips writing if res.headersSent. Always responds with { error: message }.
+Files Affected:
+  - server/src/index.ts
+Impact: Sync errors passed via next(err) and failures that reach this middleware
+        return JSON. Async route handlers must still call next(err) on rejection
+        (Express 4 default) — existing upload analyze path already uses try/catch.
+Risk: Low — additive middleware; does not change successful response shapes.
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 9  (Phase 3 — FIX-8)
+Title: 30-second Anthropic client timeout
+Problem: Default SDK timeout is 10 minutes; a hung Claude request could block
+         upload/analyze workers for a long time.
+Fix: Construct Anthropic with { timeout: 30_000 } (milliseconds). All
+     callClaude() paths use this shared client.
+Files Affected:
+  - server/src/agents/claudeHelper.ts
+Impact: Long-running API calls abort after 30s; pipeline surfaces failure via
+        existing error handling instead of hanging indefinitely.
+Risk: Low — legitimate responses under 30s unchanged; very slow responses may
+      now fail (acceptable tradeoff for hackathon-scale reliability).
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 10 (Phase 3 — FIX-9)
+Title: Rate limiting — strict on uploads, general on other API routes
+Problem: /api/upload/analyze can burn Claude credits with no per-IP throttle.
+Fix: Added express-rate-limit. /api/upload: max 10 requests / 15 min / IP.
+     /api/cases, /api/stats, /api/health: max 100 / 15 min / IP. Draft-7 rate
+     limit headers enabled; legacy X-RateLimit-* disabled.
+Files Affected:
+  - server/package.json
+  - server/package-lock.json
+  - server/src/index.ts
+Impact: Abusive clients get 429 JSON { error } from the limiter. Normal dev use
+        unaffected.
+Risk: Low — shared NAT users may share a bucket (document trust proxy if behind
+      a reverse proxy in production).
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 11 (Phase 3 — FIX-10)
+Title: Explicit PATCH contract — immutable id/createdAt; document array replace
+Problem: store.update stripped id/createdAt silently; array merge semantics were
+         only in inline comments.
+Fix: PATCH /api/cases/:id now returns 400 if body includes id or createdAt.
+     Expanded JSDoc on store.update describing shallow merge and that issues,
+     actions, documents, timeline are fully replaced when present in the patch.
+Files Affected:
+  - server/src/routes/cases.ts
+  - server/src/data/store.ts
+Impact: API clients get a clear error for forbidden patch keys. Internal
+        store.update still strips id/createdAt for defense in depth.
+Risk: Low — clients incorrectly sending id/createdAt in PATCH body must remove
+      them (correct usage uses URL id only).
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 12 (Phase 4 — FIX-11 & FIX-12)
+Title: Dependency and dead export cleanup (verification)
+Problem: Legacy plan called for removing the unused `openai` package and the
+         MOCK_STATS export from mockData.ts. Both were left over from an older
+         OpenAI-backed iteration and an unused stats seed constant.
+Fix: Verified current tree — `openai` is not listed in server/package.json or
+     package-lock.json; no imports of `openai` under server/src. mockData.ts
+     exports only types, StoredCase, and DEMO_CASES; MOCK_STATS is absent
+     (removed earlier in Change ID 4 / schema rewrite). No code or lockfile
+     edits required; Phase 4 is satisfied by verification.
+Files Affected:
+  - (none — audit-only)
+  - log.txt (this entry + PENDING FIXES checklist sync)
+Impact: Confirmed lean server dependencies and no dead MOCK_STATS surface.
+Risk: None.
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 13
+Title: CI-quality checks — frontend types, ESLint, API integration tests
+Problem: Production `tsc -b` failed on BillingChart (Recharts v3 Tooltip types).
+         No automated API tests. ESLint scanned `.claude/` worktrees and flagged
+         R3F patterns. `npm test` / `npm run build` were not defined at repo root.
+Fix: BillingChart uses TooltipContentProps + render-prop spread into CustomTooltip.
+     Server: `require.main === module` guard so tests import app without listen.
+     Added vitest + supertest, server/src/app.integration.test.ts (8 cases:
+     health, cases, stats shape, 404, PATCH immutability, upload errors).
+     server/tsconfig excludes *.test.ts from dist build. Root `npm test` proxies
+     to server; `npm run validate` runs lint + build + test.
+     eslint.config: ignore .claude/**, server/**; relax hooks rules for R3F scene
+     and typewriter/beam effects; UploadZone uses HTMLMotionProps cast; BillStorm
+     material opacity typed without `any`.
+Files Affected:
+  - src/dashboard/BillingChart.tsx
+  - src/scene/BillStorm.tsx
+  - src/ui/UploadZone.tsx
+  - eslint.config.js
+  - package.json (root)
+  - server/src/index.ts
+  - server/src/app.integration.test.ts (new)
+  - server/vitest.config.ts (new)
+  - server/package.json, server/package-lock.json, server/tsconfig.json
+  - log.txt
+Result: npm run lint, npm run build, npm test — all exit 0.
+Risk: Low — test file excluded from server tsc outDir; motion/dropzone cast is
+      contained to UploadZone.
+==========================================================
+
+==================== CHANGE LOG ENTRY ====================
+Change ID: 14
+Title: Revert all frontend edits — restore src/ + root lint config from git
+Problem: Prior session touched React/UI and root ESLint/package scripts for
+         CI polish. Owner requested strict backend-only scope going forward.
+Fix: `git checkout --` restored tracked files:
+     src/dashboard/BillingChart.tsx, src/scene/BillStorm.tsx,
+     src/ui/UploadZone.tsx, eslint.config.js, package.json (root)
+     to last committed versions. Server-side additions (tests, phases 2–4,
+     log entries) unchanged except this note.
+Files Affected:
+  - (restored from git) — see list above
+Impact: Frontend matches pre–Change-13 commit again; root `npm test` / validate
+        scripts removed if they were not in HEAD. Server `npm test` still works
+        when run inside server/.
+Risk: None — reversible via git if needed.
 ==========================================================
 
 ================================================================================
