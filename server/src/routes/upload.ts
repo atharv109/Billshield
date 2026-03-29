@@ -41,6 +41,8 @@ router.post(
         size: file.size,
         buffer: file.buffer,
       })
+      // Expire buffer after 10 minutes if analyze is never called
+      setTimeout(() => uploadedFiles.delete(fileId), 10 * 60 * 1000)
       return { fileId, name: file.originalname, size: file.size, type: file.mimetype }
     })
 
@@ -54,6 +56,11 @@ router.post('/analyze', async (req, res) => {
 
   if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
     res.status(400).json({ error: 'No fileIds provided' })
+    return
+  }
+
+  if (fileIds.some((id) => typeof id !== 'string')) {
+    res.status(400).json({ error: 'All fileIds must be strings' })
     return
   }
 

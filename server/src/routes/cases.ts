@@ -22,7 +22,7 @@ router.get('/:id', (req, res) => {
 
 // POST /api/cases — manual case creation (not used by upload pipeline)
 router.post('/', (req, res) => {
-  const body = req.body as Partial<StoredCase>
+  const { id: _id, createdAt: _createdAt, ...body } = req.body as Partial<StoredCase>
   const newCase: StoredCase = {
     id: uuidv4(),
     eventType: body.eventType ?? 'Medical Bill Review',

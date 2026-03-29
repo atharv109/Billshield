@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { store } from '../data/store'
+import { getRoutingReport } from '../eval/routingEval'
 
 const router = Router()
 
@@ -32,6 +33,11 @@ router.get('/', (_req, res) => {
     resolvedCases,
     totalCases: cases.length,
   })
+})
+
+// GET /api/stats/routing — live routing eval report (provider success rates, latency, cost profile)
+router.get('/routing', (_req, res) => {
+  res.json(getRoutingReport())
 })
 
 export default router
